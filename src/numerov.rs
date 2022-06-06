@@ -2,15 +2,15 @@
 
 #[derive(Debug)]
 pub struct State{
-    pub energy: f32,
-    pub wf: Vec<f32>,
-    pub x_left: f32,
-    pub x_right: f32,
+    pub energy: f64,
+    pub wf: Vec<f64>,
+    pub x_left: f64,
+    pub x_right: f64,
 }
 
-pub fn find_bound_states(xbounds: (f32, f32),
-                     support: (f32, f32), 
-                     potential: &Vec<f32>) -> Vec<State> 
+pub fn find_bound_states(xbounds: (f64, f64),
+                     support: (f64, f64), 
+                     potential: &Vec<f64>) -> Vec<State> 
 {
     /*
      * Find the bound states using the numerov algorithm
@@ -25,6 +25,7 @@ pub fn find_bound_states(xbounds: (f32, f32),
     let E_min = *potential.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
 
     let energy_interval = (E_min, E_min/1000.);
+    println!("E_min: {}, energy_interval: {:?}", E_min, energy_interval);
     let (psi_lo, log_diff_lo) = bidirectional_shooting(E_min, xbounds, support, potential);
     let (psi_hi, log_diff_hi) = bidirectional_shooting(E_min/1000., xbounds, support, potential);
     //println!("{:?}\nnodes: {}", psi_hi, count_nodes
@@ -51,11 +52,11 @@ fn count_nodes(psi: &State) -> usize {
         .sum::<usize>()
 }
 
-fn recursive_bisect(mut energy_interval: (f32, f32), mut end_log_diffs: (f32, f32),
+fn recursive_bisect(mut energy_interval: (f64, f64), mut end_log_diffs: (f64, f64),
                     mut end_nodes: (usize, usize),
-                    n_nodes: usize, xbounds: (f32, f32), support: (f32, f32),
-                    potential: &Vec<f32>)
-    -> Option<f32>
+                    n_nodes: usize, xbounds: (f64, f64), support: (f64, f64),
+                    potential: &Vec<f64>)
+    -> Option<f64>
 {
     /*
      * recursively bisect to find the 0 of the bidir log diff stuff
@@ -63,7 +64,7 @@ fn recursive_bisect(mut energy_interval: (f32, f32), mut end_log_diffs: (f32, f3
      * TODO Fix what happens if no valid wf exists...
      */
     // Base case: interval is small = return middle of interval.
-    if energy_interval.1 - energy_interval.0 < 1e-5 {
+    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-5 {
         if end_nodes.0 == n_nodes && end_nodes.1 == n_nodes {
             return Some((energy_interval.0 + energy_interval.1) / 2.)
         } else {
@@ -94,7 +95,7 @@ fn recursive_bisect(mut energy_interval: (f32, f32), mut end_log_diffs: (f32, f3
     // the root is between them is they have opposite signs, otherwise
     // it's between mid and high end
     else if mid_n_nodes == n_nodes && end_nodes.0 == n_nodes {
-        if log_diff * end_log_diffs.0 < 0. {
+        if log_diff * end_log_diffs.0 <= 0. {
             replace_lo = false;
         } else {
             replace_lo = true;
@@ -102,7 +103,7 @@ fn recursive_bisect(mut energy_interval: (f32, f32), mut end_log_diffs: (f32, f3
     }
     // Same with mid and the upper end
     else if mid_n_nodes == n_nodes && end_nodes.1 == n_nodes {
-        if log_diff * end_log_diffs.1 < 0. {
+        if log_diff * end_log_diffs.1 <= 0. {
             replace_lo = true;
         } else {
             replace_lo = false;
@@ -120,9 +121,9 @@ fn recursive_bisect(mut energy_interval: (f32, f32), mut end_log_diffs: (f32, f3
         let mut trial_E = (energy_interval.1 + mid) / 2.;
         let mut func_is_inc = false;
         println!("Looping");
-        for _ in 0..15 {
+        for i in 0..25 {
         //loop {
-            let (trial_psi, trial_log_diff) = bidirectional_shooting(trial_E, support, xbounds, potential);
+            let (trial_psi, trial_log_diff) = bidirectional_shooting(trial_E, xbounds, support, potential);
             let trial_nodes = count_nodes(&trial_psi);
             println!("trial: {}, {}, {}", trial_E, trial_nodes, trial_log_diff);
             if trial_nodes == n_nodes {
@@ -135,12 +136,17 @@ fn recursive_bisect(mut energy_interval: (f32, f32), mut end_log_diffs: (f32, f3
             } else {
                 trial_E = (trial_E + mid) / 2.;
             }
+            if i == 24 {
+                println!("{:?}", trial_psi);
+                println!("{:?}", psi);
+                panic!("öajsdöflkasdf");
+            }
         }
         
         if func_is_inc {
-            replace_lo = log_diff < 0.;
+            replace_lo = log_diff <= 0.;
         } else {
-            replace_lo = log_diff > 0.;
+            replace_lo = log_diff >= 0.;
         }
     }
 
@@ -160,9 +166,9 @@ fn recursive_bisect(mut energy_interval: (f32, f32), mut end_log_diffs: (f32, f3
 
 
 fn min_index<I>(iter: I) -> usize
-    where I: IntoIterator<Item = f32>
+    where I: IntoIterator<Item = f64>
 {
-    let mut min = f32::INFINITY;
+    let mut min = f64::INFINITY;
     let mut mindex = 0;
 
     for (i, v) in iter.into_iter().enumerate() {
@@ -174,8 +180,8 @@ fn min_index<I>(iter: I) -> usize
     mindex
 }
                 
-fn numerov(E: f32, psi_0: f32, psi_1: f32, start_ind: usize, end_ind: usize, dx: f32,
-           potential: &Vec<f32>) -> Vec<f32>
+fn numerov(E: f64, psi_0: f64, psi_1: f64, start_ind: usize, end_ind: usize, dx: f64,
+           potential: &Vec<f64>) -> Vec<f64>
 {
     /*
      * Performs numerov integration from index start_ind of the potential
@@ -214,11 +220,11 @@ fn numerov(E: f32, psi_0: f32, psi_1: f32, start_ind: usize, end_ind: usize, dx:
     
 
 
-fn bidirectional_shooting(E: f32, 
-                          xbounds: (f32, f32), 
-                          support: (f32, f32), 
-                          potential: &Vec<f32>)
-    -> (State, f32)
+fn bidirectional_shooting(E: f64, 
+                          xbounds: (f64, f64), 
+                          support: (f64, f64), 
+                          potential: &Vec<f64>)
+    -> (State, f64)
 {
     /*
      * runs numerov from left and from right to b
@@ -226,7 +232,7 @@ fn bidirectional_shooting(E: f32,
 
     assert!(E < 0.);
 
-    let dx = (support.1 - support.0) / (potential.len() - 1) as f32;
+    let dx = (support.1 - support.0) / (potential.len() - 1) as f64;
 
     // Find b as the point where the potential is closest to E
     // What if there is a discontinuity?
@@ -244,12 +250,12 @@ fn bidirectional_shooting(E: f32,
     // remember \int_0^\infty e^{-\sqrt{2 E} x} dx = 1/\sqrt{2 E}
     let norm_r_sqr = psi_r.iter()
         .map(|psi| psi.abs().powi(2))
-        .sum::<f32>()
+        .sum::<f64>()
         * dx
         + 1./(2.*(-2.*E).sqrt());
     let norm_l_sqr = psi_l.iter()
         .map(|psi| psi.abs().powi(2))
-        .sum::<f32>()
+        .sum::<f64>()
         * dx
         + 1./(2.*(-2.*E).sqrt());
 
@@ -275,11 +281,11 @@ fn bidirectional_shooting(E: f32,
         ((xbounds.1 - support.1) / dx).ceil() as usize);
 
     let psi_l_tail = (2..nbounds.0)
-        .map(|n| dx * n as f32)
+        .map(|n| dx * n as f64)
         .map(|x| (-(-2.*E).sqrt()*x).exp())
         .rev();
     let psi_r_tail = (2..nbounds.1)
-        .map(|n| dx * n as f32)
+        .map(|n| dx * n as f64)
         .map(|x| (-(-2.*E).sqrt()*x).exp())
         .peekable();
 
@@ -304,7 +310,7 @@ fn bidirectional_shooting(E: f32,
 
     //println!("i: {}, length of pot: {}, energy_diff", i, potential.len());
 
-    //println!("{:?}", psi.wf.iter().map(|psi| psi.abs().powi(2)).sum::<f32>()*dx);
+    //println!("{:?}", psi.wf.iter().map(|psi| psi.abs().powi(2)).sum::<f64>()*dx);
 
     (psi, log_diff)
 }
@@ -317,7 +323,7 @@ mod tests {
     #[test]
     fn numerov() {
         let potential = (0..100)
-            .map(|i| 400. * ((i as f32 / 100.).powi(2) - (i as f32 / 100.)))
+            .map(|i| 400. * ((i as f64 / 100.).powi(2) - (i as f64 / 100.)))
             .collect();
         let psi = super::numerov(-200., 0.99, 1., 1, 98, 0.001, &potential);
         // It should look smooth...
@@ -327,7 +333,7 @@ mod tests {
     #[test]
     fn bidir() {
         //let potential = (0..100)
-            //.map(|i| 400. * ((i as f32 / 100.).powi(2) - (i as f32 / 100.)))
+            //.map(|i| 400. * ((i as f64 / 100.).powi(2) - (i as f64 / 100.)))
             //.collect();
         let potential = vec![-100.; 100];
         let psi = bidirectional_shooting(-50., (-1.0, 1.0), (-0.5,0.5), &potential);
