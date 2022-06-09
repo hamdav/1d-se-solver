@@ -45,12 +45,74 @@ pub fn find_bound_states(xbounds: (f64, f64),
     rv
 } 
 
+pub fn find_bound_states2(xbounds: (f64, f64),
+    support: (f64, f64), 
+    potential: &Vec<f64>) -> Vec<State> 
+{
+    let E_min = *potential.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+
+    let ediffn = (0..1000).map(|n| {
+        let E = E_min * (1000. - n as f64) / 1000.;
+        let (psi, log_diff) = bidirectional_shooting(E, xbounds, support, potential);
+        (E, log_diff, count_nodes(&psi))
+    })
+    .collect::<Vec<(f64, f64, usize)>>();
+
+    println!("{:?}", ediffn.iter().map(|(_,b,_)| *b).collect::<Vec<f64>>());
+
+    let psis = ediffn.iter()
+        .zip(ediffn.iter().skip(1))
+        // Filter out only the crossings
+        .filter(|((_, log_diff1, n_nodes1), (_, log_diff2, n_nodes2))|
+                n_nodes1 == n_nodes2 && log_diff1 * log_diff2 <= 0.)
+        // Find crossings with bisection method
+        .map(|((E1, log_diff1, _), (E2, log_diff2, _))|
+             simple_logdiff_bisect((*E1, *E2), (*log_diff1, *log_diff2),
+                                   xbounds, support, potential))
+        // Now we have an energy, make it a psi
+        .map(|E| bidirectional_shooting(E, xbounds, support, potential).0)
+        .collect();
+
+    psis
+}
+
 fn count_nodes(psi: &State) -> usize {
     psi.wf.iter()
         .zip(psi.wf.iter().skip(1))
         .map(|(&a, &b)| if a * b < 0. {1} else {0})
         .sum::<usize>()
 }
+
+fn simple_logdiff_bisect(mut energy_interval: (f64, f64),
+                         mut end_log_diffs: (f64, f64),
+                         xbounds: (f64, f64),
+                         support: (f64, f64),
+                         potential: &Vec<f64>)
+    -> f64
+{
+    /*
+     * Assumes the different end of the energy interval has the same number of nodes and different
+     * signs for the log diff
+     */
+    // Base case: interval is small = return middle of interval.
+    let mid = (energy_interval.0 + energy_interval.1) / 2.;
+    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-5 {
+        return mid
+    }
+
+    // Check mid
+    let (_, log_diff) = bidirectional_shooting(mid, xbounds, support, potential);
+
+    if log_diff * end_log_diffs.0 <= 0. {
+        end_log_diffs.1 = log_diff;
+        energy_interval.1 = mid;
+    } else {
+        end_log_diffs.0 = log_diff;
+        energy_interval.0 = mid;
+    }
+    return simple_logdiff_bisect(energy_interval, end_log_diffs, xbounds, support, potential);
+}
+
 
 fn recursive_bisect(mut energy_interval: (f64, f64), mut end_log_diffs: (f64, f64),
                     mut end_nodes: (usize, usize),
@@ -60,8 +122,6 @@ fn recursive_bisect(mut energy_interval: (f64, f64), mut end_log_diffs: (f64, f6
 {
     /*
      * recursively bisect to find the 0 of the bidir log diff stuff
-     *
-     * TODO Fix what happens if no valid wf exists...
      */
     // Base case: interval is small = return middle of interval.
     if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-5 {
@@ -241,6 +301,7 @@ fn bidirectional_shooting(E: f64,
     let mut i = potential.iter().take_while(|&&v| v > E).count();
     if i <= 1 { i = 2; }
     else if i >= potential.len() - 2 {i = potential.len()-3;}
+    //i = potential.len() / 2;
 
     // if V[i] - E is too large, do something...
     let psi_l = numerov(E, (-(-2.*E).sqrt() * dx).exp(), 1., 1, i, dx, &potential);
@@ -268,7 +329,7 @@ fn bidirectional_shooting(E: f64,
     // a^2 * norm_l_sqr + b^2 * norm_r_sqr = 1 ---- normalized
     // => b = a * psi_l[-1] / psi_r[-1]
     // a = sqrt(1 / (norm_l_sqr + norm_r_sqr * psi_l[-1]^2 / psi_r[-1]^2 ))
-    let a = 1. / (norm_l_sqr + norm_r_sqr * psi_l[psi_l.len()-1].powi(2) / psi_r[psi_r.len()-1].powi(2)).sqrt();
+    let a = -1. / (norm_l_sqr + norm_r_sqr * psi_l[psi_l.len()-1].powi(2) / psi_r[psi_r.len()-1].powi(2)).sqrt();
     let b = a * psi_l[psi_l.len()-1] / psi_r[psi_r.len()-1];
 
 
