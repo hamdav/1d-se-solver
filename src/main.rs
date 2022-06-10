@@ -23,7 +23,7 @@ fn main()
 {
 
     let window =
-        Window::new_centered("Speedy2D: Input Callbacks Example", (1280, 960)).unwrap();
+        Window::new_centered("1D SE solver", (1280, 960)).unwrap();
 
     window.run_loop(MyWindowHandler::new(Vector2{x: 1280, y:960}));
 }
@@ -39,6 +39,8 @@ fn convert_curve(curve: Vec<Vector2<f64>>) -> Vec<Vector2<f64>>{
     // is the curve mostly drawn from right to left or from left to right.
     let left_to_right = curve[0].x < curve[curve.len()-1].x;
 
+    // Only add new points if they are to the right (or left) 
+    // of the old ones
     let mut rv = vec![curve[0]];
     for v in curve {
         if left_to_right && v.x > rv[rv.len()-1].x {
@@ -48,9 +50,12 @@ fn convert_curve(curve: Vec<Vector2<f64>>) -> Vec<Vector2<f64>>{
             rv.push(v);
         }
     }
+
+    // Reverse if needed
     if !left_to_right {
         rv.reverse();
     }
+
     rv
 }
 
@@ -63,11 +68,16 @@ fn resample_curve(curve: Vec<Vector2<f64>>, n_samples: usize) -> Vec<f64> {
     let x_lo = curve[0].x;
     let x_hi = curve[curve.len()-1].x;
     let dx = (x_hi - x_lo) / (n_samples as f64 - 1.);
+
+    // xs is the x coordinates of the original curve
     let xs = curve.iter().map(|v| v.x).collect::<Vec<f64>>();
 
     for i in 0..n_samples {
 
         let x = x_lo + dx * i as f64;
+        // Check if the x is exactly at one of the original curves
+        // points or if not, which two it is in between
+        // If it's between two, interpolate and add that to the samples
         let res = xs.binary_search_by(|a| a.partial_cmp(&x).unwrap());
 
         match res {
@@ -83,9 +93,7 @@ fn resample_curve(curve: Vec<Vector2<f64>>, n_samples: usize) -> Vec<f64> {
             }
         }
     }
-    //println!("{:?}", curve);
-    //println!("{:?}", resampled_curve);
-    //
+
     resampled_curve
 }
 
@@ -108,7 +116,7 @@ impl MyWindowHandler {
     fn new(window_size: Vector2<u32>) -> Self {
         MyWindowHandler{
             energy_scale: 100.,
-            wf_scale: 2.,
+            wf_scale: 3.,
             window_size,
             drawn_curve: Vec::new(),
             potential: Vec::new(),
@@ -119,18 +127,41 @@ impl MyWindowHandler {
         }
     }
     fn update_potential_and_wf(&mut self) {
+        /*
+         * Recalculates the potential from the currently drawn curve
+         * and recalculates the bound states of the potential,
+         * updating self.wfs
+         * If the recalculation invalidates the marked wf, the marking is
+         * cleared
+         */
+
+        // Convert from screen coordinates to physical coordinates (-1, 1)
         let phys_curve: Vec<Vector2<f64>> = self.drawn_curve.iter()
             .map(|v| self.px2phys(*v))
             .collect();
-        //println!("{:?}", phys_curve);
+
+        // Calculate the support of the potential
         self.support = (phys_curve[0].x, phys_curve[phys_curve.len()-1].x);
+
+        // Calculate the potential by resampling and converting from
+        // physical coordinates to energy coordinates
         self.potential = resample_curve(convert_curve(phys_curve), 500)
             .iter()
-            .map(|v| self.energy_scale*v)
+            .map(|v| self.energy_scale * v)
             .collect();
+        // Extend the drawn potential by inserting zeros at the edges
+        // Note that the support also needs to be altered
+        let dx = (self.support.1 - self.support.0) 
+            / (self.potential.len() as f64 - 1.);
+        self.support.0 -= dx;
+        self.support.1 += dx;
         self.potential.insert(0, 0.);
         self.potential.push(0.);
+
+        // find the bound states
         self.wfs = numerov::find_bound_states((-1., 1.), self.support, &self.potential);
+        // If this recalculation made our marked state not exist,
+        // stop marking it
         if let Some(idx) = self.marked_wf {
             if idx >= self.wfs.len() {
                 self.marked_wf = None;
@@ -139,7 +170,9 @@ impl MyWindowHandler {
     }
     fn px2phys(&self, pxpos: Vector2<f32>) -> Vector2<f64> {
         /*
-         * physical coordinates: 0,0 in middle of screen, 1,1 on top right corner
+         * physical coordinates: 
+         * 0,0 in middle of screen,
+         * 1,1 on top right corner
          */
         Vector2{
             x: pxpos.x as f64 / (self.window_size.x as f64 / 2.)  - 1.,
@@ -148,7 +181,9 @@ impl MyWindowHandler {
     }
     fn phys2px(&self, physpos: Vector2<f64>) -> Vector2<f32> {
         /*
-         * physical coordinates: 0,0 in middle of screen, 1,1 on top right corner
+         * physical coordinates:
+         * 0,0 in middle of screen,
+         * 1,1 on top right corner
          */
         Vector2{
             x: (physpos.x as f32 + 1.) * (self.window_size.x as f32 / 2.),
@@ -229,25 +264,20 @@ impl WindowHandler for MyWindowHandler
 
     fn on_mouse_move(&mut self, helper: &mut WindowHelper, position: Vector2<f32>)
     {
-        // println!(
-        //     "Got on_mouse_move callback: ({:.1}, {:.1})",
-        //     position.x,
-        //     position.y
-        // );
         if self.mouse_button_down {
             self.drawn_curve.push(position);
             helper.request_redraw();
         }
     }
 
-    fn on_mouse_button_down(&mut self, helper: &mut WindowHelper, button: MouseButton)
+    fn on_mouse_button_down(&mut self, _helper: &mut WindowHelper, button: MouseButton)
     {
         if button == MouseButton::Left {
             self.mouse_button_down = true;
         }
     }
 
-    fn on_mouse_button_up(&mut self, helper: &mut WindowHelper, button: MouseButton)
+    fn on_mouse_button_up(&mut self, _helper: &mut WindowHelper, button: MouseButton)
     {
         if button == MouseButton::Left {
             self.mouse_button_down = false;
@@ -266,21 +296,27 @@ impl WindowHandler for MyWindowHandler
             virtual_key_code,
             scancode
         );
+        // Press Q to (re)calculate the bound states
         if virtual_key_code == Some(VirtualKeyCode::Q) {
             self.update_potential_and_wf();
             helper.request_redraw();
         }
+        // Press K to decrease the energy scaling,
+        // effectively decreasing the depth of the potential
         if virtual_key_code == Some(VirtualKeyCode::K) {
             self.energy_scale /= 1.01;
             self.update_potential_and_wf();
             helper.request_redraw();
         }
+        // Press J to increase the energy scaling,
+        // effectively increasing the depth of the potential
         if virtual_key_code == Some(VirtualKeyCode::J) {
             self.energy_scale *= 1.01;
             self.update_potential_and_wf();
             helper.request_redraw();
         }
         
+        // Press C to clear everything, potential, drawn curve and wfs
         if virtual_key_code == Some(VirtualKeyCode::C) {
             self.potential = Vec::new();
             self.drawn_curve = Vec::new();
@@ -288,6 +324,8 @@ impl WindowHandler for MyWindowHandler
             self.marked_wf = None;
             helper.request_redraw();
         }
+        // Press the up arrow to make the wf above marked,
+        // or mark the bottom one if nothing is marked
         if virtual_key_code == Some(VirtualKeyCode::Up) {
             if let Some(idx) = self.marked_wf {
                 if idx+1 < self.wfs.len() {
@@ -298,6 +336,8 @@ impl WindowHandler for MyWindowHandler
             }
             helper.request_redraw();
         }
+        // Press the down arrow to make the wf below marked,
+        // remove the mark if the bottom one is marked
         if virtual_key_code == Some(VirtualKeyCode::Down) {
             if let Some(idx) = self.marked_wf {
                 if idx != 0 {
