@@ -70,11 +70,83 @@ pub fn find_bound_states2(xbounds: (f64, f64),
              simple_logdiff_bisect((*E1, *E2), (*log_diff1, *log_diff2),
                                    xbounds, support, potential))
         // Now we have an energy, make it a psi
-        .map(|E| bidirectional_shooting(E, xbounds, support, potential).0)
+        .filter_map(|opt_e| opt_e.map(|energy| bidirectional_shooting(energy, xbounds, support, potential).0))
         .collect();
 
     psis
 }
+
+pub fn find_bound_states3(xbounds: (f64, f64),
+                     support: (f64, f64), 
+                     potential: &Vec<f64>) -> Vec<State> 
+{
+    /*
+     * Find the bound states using the numerov algorithm
+     *
+     * Assumes that the values of the potential are sampled on evenly spaced
+     * x-values on the support (endpoints included).
+     *
+     * The wavefunctions of the bound state are sampled on evenly spaced
+     * x-values on the xbounds (again, endpoints included)
+     */
+    
+    let E_min = *potential.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+
+    let energy_interval = (E_min, E_min/1000.);
+    println!("E_min: {}, energy_interval: {:?}", E_min, energy_interval);
+    let (psi_lo, log_diff_lo) = bidirectional_shooting(E_min, xbounds, support, potential);
+    let (psi_hi, log_diff_hi) = bidirectional_shooting(E_min/1000., xbounds, support, potential);
+    //println!("{:?}\nnodes: {}", psi_hi, count_nodes
+    //
+    let mut rv = Vec::new();
+
+    let mut lower_end = E_min;
+    for n_nodes in 0.. {
+        let interval = find_interval_enclosing_upper_boundry(energy_interval,
+            (count_nodes(&psi_lo), count_nodes(&psi_hi)), n_nodes, xbounds, support, potential);
+        if let Some(interval) = interval {
+            let (psi_lo, log_diff_lo) = bidirectional_shooting(lower_end, xbounds, support, potential);
+            let (psi_hi, log_diff_hi) = bidirectional_shooting(interval.0, xbounds, support, potential);
+
+            println!("");
+            println!("E: {:?}", (lower_end, interval.0));
+            println!("log_diffs: {:?}", (log_diff_lo, log_diff_hi));
+            println!("# of nodes: {:?}", (count_nodes(&psi_lo), count_nodes(&psi_hi)));
+            let E = simple_logdiff_bisect((lower_end, interval.0),
+                (log_diff_lo, log_diff_hi),
+                xbounds, support, potential);
+
+            if let Some(E) = E {
+                let (psi, _) = bidirectional_shooting(E, xbounds, support, potential);
+                rv.push(psi);
+            } else {
+                println!("Failed logdiff bisection");
+            }
+
+            // Prepare for next loop
+            lower_end = interval.1;
+        } else {
+            // Do one with the upper end being E_min / 1000.
+            let (psi_lo, log_diff_lo) = bidirectional_shooting(lower_end, xbounds, support, potential);
+            let (psi_hi, log_diff_hi) = bidirectional_shooting(energy_interval.1, xbounds, support, potential);
+
+            println!("");
+            println!("E: {:?}", (lower_end, energy_interval.1));
+            println!("log_diffs: {:?}", (log_diff_lo, log_diff_hi));
+            println!("# of nodes: {:?}", (count_nodes(&psi_lo), count_nodes(&psi_hi)));
+            let E = simple_logdiff_bisect((lower_end, energy_interval.1),
+                (log_diff_lo, log_diff_hi),
+                xbounds, support, potential);
+
+            if let Some(E) = E {
+                let (psi, _) = bidirectional_shooting(E, xbounds, support, potential);
+                rv.push(psi);
+            }
+            break;
+        }
+    }
+    rv
+} 
 
 fn count_nodes(psi: &State) -> usize {
     psi.wf.iter()
@@ -88,16 +160,21 @@ fn simple_logdiff_bisect(mut energy_interval: (f64, f64),
                          xbounds: (f64, f64),
                          support: (f64, f64),
                          potential: &Vec<f64>)
-    -> f64
+    -> Option<f64>
 {
     /*
-     * Assumes the different end of the energy interval has the same number of nodes and different
-     * signs for the log diff
+     * Returns Some(energy) if the different ends of the energy interval
+     * has the same number of nodes and different signs for the log diff
      */
+
+    // Check that interval is valid
+    if end_log_diffs.0 * end_log_diffs.1 > 0. {
+        return None
+    }
     // Base case: interval is small = return middle of interval.
     let mid = (energy_interval.0 + energy_interval.1) / 2.;
-    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-5 {
-        return mid
+    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-14 {
+        return Some(mid)
     }
 
     // Check mid
@@ -113,10 +190,56 @@ fn simple_logdiff_bisect(mut energy_interval: (f64, f64),
     return simple_logdiff_bisect(energy_interval, end_log_diffs, xbounds, support, potential);
 }
 
+fn find_interval_enclosing_upper_boundry(mut energy_interval: (f64, f64),
+                                   mut end_nodes: (usize, usize),
+                                   n_nodes: usize,
+                                   xbounds: (f64, f64),
+                                   support: (f64, f64),
+                                   potential: &Vec<f64>)
+    -> Option<(f64, f64)>
+{
+    /*
+     * Finds the upper endpoint of the energy interval where the wf
+     * has n_nodes nodes
+     */
+
+    // Base case: interval is small = return lower end of interval.
+    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-14 {
+        if end_nodes.0 == n_nodes && end_nodes.1 == n_nodes+1 {
+            return Some(energy_interval)
+        } else {
+            return None
+        }
+    }
+    // Check that the interval is even valid
+    if end_nodes.1 <= n_nodes {
+        return None
+    }
+
+    // Do the bisection
+    let mid = (energy_interval.0 + energy_interval.1) / 2.;
+    let (psi, log_diff) = bidirectional_shooting(mid, xbounds, support, potential);
+    let mid_n_nodes = count_nodes(&psi);
+    // println!("");
+    // println!("E: {:?}", energy_interval);
+    // println!("# of nodes: {:?}", end_nodes);
+    // println!("mid: {}, {}, {}", mid, mid_n_nodes, log_diff);
+
+    if mid_n_nodes <= n_nodes {
+        end_nodes.0 = mid_n_nodes;
+        energy_interval.0 = mid;
+    } else {
+        end_nodes.1 = mid_n_nodes;
+        energy_interval.1 = mid;
+    }
+
+    return find_interval_enclosing_upper_boundry(energy_interval, end_nodes, n_nodes, xbounds, support, potential)
+}
 
 fn recursive_bisect(mut energy_interval: (f64, f64), mut end_log_diffs: (f64, f64),
                     mut end_nodes: (usize, usize),
-                    n_nodes: usize, xbounds: (f64, f64), support: (f64, f64),
+                    n_nodes: usize, xbounds: (f64, f64), 
+                    support: (f64, f64),
                     potential: &Vec<f64>)
     -> Option<f64>
 {
