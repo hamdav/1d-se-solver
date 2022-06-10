@@ -130,10 +130,7 @@ impl MyWindowHandler {
             .collect();
         self.potential.insert(0, 0.);
         self.potential.push(0.);
-        //println!("{:?}", self.potential);
-        //self.wfs = numerov::find_bound_states((-1., 1.), self.support, &self.potential);
-        //self.wfs = numerov::find_bound_states2((-1., 1.), self.support, &self.potential);
-        self.wfs = numerov::find_bound_states3((-1., 1.), self.support, &self.potential);
+        self.wfs = numerov::find_bound_states((-1., 1.), self.support, &self.potential);
         if let Some(idx) = self.marked_wf {
             if idx >= self.wfs.len() {
                 self.marked_wf = None;
