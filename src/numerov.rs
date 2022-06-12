@@ -81,6 +81,40 @@ pub fn find_bound_states(xbounds: (f64, f64),
                 rv.push(psi);
             } else {
                 println!("Failed logdiff bisection");
+                // So the bisection failed. This probably means that the
+                // eigen energy is closer to the node boundry than the size
+                // of the interval. If so, one of the boundaries is
+                // probably close enough to the true wf, the only question
+                // is which. To determine this, try to find the derivative
+                // at each of the boundaries and take the one where the
+                // derivative is largest
+                //
+                let dx = interval.1 - interval.0;
+                let (psi_lo_2, log_diff_lo_2) = bidirectional_shooting(
+                    lower_end + dx, xbounds, support, potential);
+                let (psi_hi_2, log_diff_hi_2) = bidirectional_shooting(
+                    interval.0 - dx, xbounds, support, potential);
+                // kx + m = 0 => x = -m / k
+                let intercepts = (-log_diff_lo * dx / 
+                                  (log_diff_lo - log_diff_lo_2),
+                                  -log_diff_hi * dx /
+                                  (log_diff_hi - log_diff_hi_2));
+                // 
+                if intercepts.0 >= 0. && intercepts.1 >= 0.
+                {
+                    println!("Both: {:?}", intercepts);
+                    if intercepts.0 < intercepts.1 {
+                        rv.push(psi_lo);
+                    } else {
+                        rv.push(psi_hi);
+                    }
+                } else if intercepts.0 >= 0. && intercepts.1 < 0. {
+                    rv.push(psi_lo);
+                } else if intercepts.0 < 0. && intercepts.1 >= 0. {
+                    rv.push(psi_hi);
+                } else {
+                    println!("Failed endpoint choosing");
+                }
             }
 
             // Prepare for next loop by saving the lower bound
@@ -133,13 +167,22 @@ fn simple_logdiff_bisect(mut energy_interval: (f64, f64),
      * has the same number of nodes and different signs for the log diff
      */
 
+
+    // If the log diffs are both supersmall, return the middle
+    // if end_log_diffs.0.abs() < 1e-3 {
+    //     return Some(energy_interval.0)
+    // } else if end_log_diffs.1.abs() < 1e-3 {
+    //     return Some(energy_interval.1)
+    // }
+
     // Check that interval is valid
     if end_log_diffs.0 * end_log_diffs.1 > 0. {
         return None
     }
+
     // Base case: interval is small = return middle of interval.
     let mid = (energy_interval.0 + energy_interval.1) / 2.;
-    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-14 {
+    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-13 {
         return Some(mid)
     }
 
@@ -172,7 +215,7 @@ fn find_interval_enclosing_upper_boundry(mut energy_interval: (f64, f64),
      */
 
     // Base case: interval is small = return lower end of interval.
-    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-14 {
+    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-13 {
         if end_nodes.0 == n_nodes && end_nodes.1 == n_nodes+1 {
             return Some(energy_interval)
         } else {
@@ -292,7 +335,11 @@ fn bidirectional_shooting(E: f64,
     let dx = (support.1 - support.0) / (potential.len() - 1) as f64;
 
     //let mut i = min_index(potential.iter().map(|v| (v-E).abs()));
-    let mut i = potential.iter().take_while(|&&v| v > E).count();
+    let mut i = potential.iter()
+        .skip_while(|&&v| v > E)
+        .skip_while(|&&v| v < E)
+        .count();
+    i = potential.len() - i;
     if i <= 1 { i = 2; }
     else if i >= potential.len() - 2 {i = potential.len()-3;}
 

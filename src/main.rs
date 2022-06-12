@@ -237,7 +237,8 @@ impl WindowHandler for MyWindowHandler
             let dx = (wf.x_right - wf.x_left) / (wf.wf.len() -1) as f64;
             for i in 0..wf.wf.len()-1 {
                 let color = if let Some(marked_idx) = self.marked_wf {
-                    if marked_idx == idx {Color::GREEN} else {Color::GRAY}
+                    if marked_idx == idx {Color::GREEN} 
+                    else {Color::GRAY}
                 } else { Color::GRAY };
                 graphics.draw_line(
                     self.phys2px(Vector2{
@@ -346,6 +347,16 @@ impl WindowHandler for MyWindowHandler
                     self.marked_wf = None;
                 }
             }
+            helper.request_redraw();
+        }
+        // Press H to decrease the wf scaling,
+        if virtual_key_code == Some(VirtualKeyCode::H) {
+            self.wf_scale /= 1.03;
+            helper.request_redraw();
+        }
+        // Press G to increase the wf scaling,
+        if virtual_key_code == Some(VirtualKeyCode::G) {
+            self.wf_scale *= 1.03;
             helper.request_redraw();
         }
     }
