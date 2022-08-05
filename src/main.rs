@@ -17,21 +17,21 @@ use speedy2d::window::{
 };
 use speedy2d::{Graphics2D, Window};
 
-use f128::f128;
+//use num_bigfloat;
 
 mod numerov;
 
+type Float=f64;
+
 fn main()
 {
-    let f: f128 = 1.
+    let window =
+        Window::new_centered("1D SE solver", (1280, 960)).unwrap();
 
-    // let window =
-    //     Window::new_centered("1D SE solver", (1280, 960)).unwrap();
-
-    // window.run_loop(MyWindowHandler::new(Vector2{x: 1280, y:960}));
+    window.run_loop(MyWindowHandler::new(Vector2{x: 1280, y:960}));
 }
 
-fn convert_curve(curve: Vec<Vector2<f64>>) -> Vec<Vector2<f64>>{
+fn convert_curve(curve: Vec<Vector2<Float>>) -> Vec<Vector2<Float>>{
     /*
      * Converts a curve to be a valid function over x
      * i.e. curve has only one y value per x value
@@ -62,7 +62,7 @@ fn convert_curve(curve: Vec<Vector2<f64>>) -> Vec<Vector2<f64>>{
     rv
 }
 
-fn resample_curve(curve: Vec<Vector2<f64>>, n_samples: usize) -> Vec<f64> {
+fn resample_curve(curve: Vec<Vector2<Float>>, n_samples: usize) -> Vec<Float> {
     /*
      * Returns the same curve but linearly interpolated at n_samples equally
      * spaced points in the same span as the original curve. 
@@ -70,14 +70,14 @@ fn resample_curve(curve: Vec<Vector2<f64>>, n_samples: usize) -> Vec<f64> {
     let mut resampled_curve = vec![];
     let x_lo = curve[0].x;
     let x_hi = curve[curve.len()-1].x;
-    let dx = (x_hi - x_lo) / (n_samples as f64 - 1.);
+    let dx = (x_hi - x_lo) / (n_samples as Float - 1.);
 
     // xs is the x coordinates of the original curve
-    let xs = curve.iter().map(|v| v.x).collect::<Vec<f64>>();
+    let xs = curve.iter().map(|v| v.x).collect::<Vec<Float>>();
 
     for i in 0..n_samples {
 
-        let x = x_lo + dx * i as f64;
+        let x = x_lo + dx * i as Float;
         // Check if the x is exactly at one of the original curves
         // points or if not, which two it is in between
         // If it's between two, interpolate and add that to the samples
@@ -105,10 +105,10 @@ fn resample_curve(curve: Vec<Vector2<f64>>, n_samples: usize) -> Vec<f64> {
 struct MyWindowHandler
 {
     drawn_curve: Vec<Vector2<f32>>,
-    potential: Vec<f64>,
-    support: (f64, f64),
-    energy_scale: f64,
-    wf_scale: f64,
+    potential: Vec<Float>,
+    support: (Float, Float),
+    energy_scale: Float,
+    wf_scale: Float,
     wfs: Vec<numerov::State>,
     mouse_button_down: bool,
     window_size: Vector2<u32>,
@@ -139,7 +139,7 @@ impl MyWindowHandler {
          */
 
         // Convert from screen coordinates to physical coordinates (-1, 1)
-        let phys_curve: Vec<Vector2<f64>> = self.drawn_curve.iter()
+        let phys_curve: Vec<Vector2<Float>> = self.drawn_curve.iter()
             .map(|v| self.px2phys(*v))
             .collect();
 
@@ -155,7 +155,7 @@ impl MyWindowHandler {
         // Extend the drawn potential by inserting zeros at the edges
         // Note that the support also needs to be altered
         let dx = (self.support.1 - self.support.0) 
-            / (self.potential.len() as f64 - 1.);
+            / (self.potential.len() as Float - 1.);
         self.support.0 -= dx;
         self.support.1 += dx;
         self.potential.insert(0, 0.);
@@ -171,18 +171,18 @@ impl MyWindowHandler {
             }
         }
     }
-    fn px2phys(&self, pxpos: Vector2<f32>) -> Vector2<f64> {
+    fn px2phys(&self, pxpos: Vector2<f32>) -> Vector2<Float> {
         /*
          * physical coordinates: 
          * 0,0 in middle of screen,
          * 1,1 on top right corner
          */
         Vector2{
-            x: pxpos.x as f64 / (self.window_size.x as f64 / 2.)  - 1.,
-            y: -pxpos.y as f64 / (self.window_size.y as f64 / 2.)  + 1.,
+            x: pxpos.x as Float / (self.window_size.x as Float / 2.)  - 1.,
+            y: -pxpos.y as Float / (self.window_size.y as Float / 2.)  + 1.,
         }
     }
-    fn phys2px(&self, physpos: Vector2<f64>) -> Vector2<f32> {
+    fn phys2px(&self, physpos: Vector2<Float>) -> Vector2<f32> {
         /*
          * physical coordinates:
          * 0,0 in middle of screen,
@@ -222,9 +222,9 @@ impl WindowHandler for MyWindowHandler
         }
 
         //Draw the potential
-        let dx = (self.support.1 - self.support.0) / (self.potential.len() as f64 - 1.);
+        let dx = (self.support.1 - self.support.0) / (self.potential.len() as Float - 1.);
         for i in 1..self.potential.len() {
-            let x = self.support.0 + i as f64 * dx;
+            let x = self.support.0 + i as Float * dx;
             graphics.draw_line(
                 self.phys2px(Vector2{
                     x: x - dx, y: self.potential[i-1] / self.energy_scale}), 
@@ -237,7 +237,7 @@ impl WindowHandler for MyWindowHandler
         // Draw the wf energy lines
         for (idx, wf) in self.wfs.iter().enumerate() {
 
-            let dx = (wf.x_right - wf.x_left) / (wf.wf.len() -1) as f64;
+            let dx = (wf.x_right - wf.x_left) / (wf.wf.len() -1) as Float;
             for i in 0..wf.wf.len()-1 {
                 let color = if let Some(marked_idx) = self.marked_wf {
                     if marked_idx == idx {Color::GREEN} 
@@ -245,22 +245,22 @@ impl WindowHandler for MyWindowHandler
                 } else { Color::GRAY };
                 graphics.draw_line(
                     self.phys2px(Vector2{
-                        x: wf.x_left + i as f64 * dx, y: wf.energy / self.energy_scale}), 
+                        x: wf.x_left + i as Float * dx, y: wf.energy / self.energy_scale}), 
                     self.phys2px(Vector2{
-                        x: wf.x_left + (i+1) as f64 * dx, y: wf.energy / self.energy_scale}),
+                        x: wf.x_left + (i+1) as Float * dx, y: wf.energy / self.energy_scale}),
                     3.0, Color::from_rgba(color.r(), color.g(), color.b(), wf.wf[i].powi(2) as f32))
             }
         }
         // Draw the wavefunction
         if let Some(idx) = self.marked_wf {
             let wf = &self.wfs[idx];
-            let dx = (wf.x_right - wf.x_left) / (wf.wf.len() -1) as f64;
+            let dx = (wf.x_right - wf.x_left) / (wf.wf.len() -1) as Float;
             for i in 0..wf.wf.len()-1 {
                 graphics.draw_line(
                     self.phys2px(Vector2{
-                        x: wf.x_left + i as f64 * dx, y: wf.wf[i] / self.wf_scale}), 
+                        x: wf.x_left + i as Float * dx, y: wf.wf[i] / self.wf_scale}), 
                     self.phys2px(Vector2{
-                        x: wf.x_left + (i+1) as f64 * dx, y: wf.wf[i+1] / self.wf_scale}),
+                        x: wf.x_left + (i+1) as Float * dx, y: wf.wf[i+1] / self.wf_scale}),
                     3.0, Color::GREEN);
             }
         }

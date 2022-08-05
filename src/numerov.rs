@@ -1,14 +1,17 @@
+use super::Float;
+
+
 #[derive(Debug)]
 pub struct State{
-    pub energy: f64,
-    pub wf: Vec<f64>,
-    pub x_left: f64,
-    pub x_right: f64,
+    pub energy: Float,
+    pub wf: Vec<Float>,
+    pub x_left: Float,
+    pub x_right: Float,
 }
 
-pub fn find_bound_states(xbounds: (f64, f64),
-                         support: (f64, f64), 
-                         potential: &Vec<f64>) -> Vec<State> 
+pub fn find_bound_states(xbounds: (Float, Float),
+                         support: (Float, Float), 
+                         potential: &Vec<Float>) -> Vec<State> 
 {
     /*
      * Find the bound states using the numerov algorithm
@@ -88,14 +91,14 @@ pub fn find_bound_states(xbounds: (f64, f64),
                 // is which. To determine this, we calculate the overlap
                 // with the previously added wf and take the one that is
                 // most orthogonal.
-                let dx = (xbounds.1 - xbounds.0) / psi_lo.wf.len() as f64;
+                let dx = (xbounds.1 - xbounds.0) / psi_lo.wf.len() as Float;
                 let overlaps = (
                     psi_lo.wf.iter().zip(rv[rv.len()-1].wf.iter())
                         .map(|(&pl, &p)| pl * p)
-                        .sum::<f64>() * dx,
+                        .sum::<Float>() * dx,
                     psi_hi.wf.iter().zip(rv[rv.len()-1].wf.iter())
                         .map(|(&ph, &p)| ph * p)
-                        .sum::<f64>() * dx
+                        .sum::<Float>() * dx
                     );
 
                 println!("overlaps: {:?}", overlaps);
@@ -144,12 +147,12 @@ fn count_nodes(psi: &State) -> usize {
         .sum::<usize>()
 }
 
-fn simple_logdiff_bisect(mut energy_interval: (f64, f64),
-                         mut end_log_diffs: (f64, f64),
-                         xbounds: (f64, f64),
-                         support: (f64, f64),
-                         potential: &Vec<f64>)
-    -> Option<f64>
+fn simple_logdiff_bisect(mut energy_interval: (Float, Float),
+                         mut end_log_diffs: (Float, Float),
+                         xbounds: (Float, Float),
+                         support: (Float, Float),
+                         potential: &Vec<Float>)
+    -> Option<Float>
 {
     /*
      * Returns Some(energy) if the different ends of the energy interval
@@ -190,13 +193,13 @@ fn simple_logdiff_bisect(mut energy_interval: (f64, f64),
     return simple_logdiff_bisect(energy_interval, end_log_diffs, xbounds, support, potential);
 }
 
-fn find_interval_enclosing_upper_boundry(mut energy_interval: (f64, f64),
+fn find_interval_enclosing_upper_boundry(mut energy_interval: (Float, Float),
                                    mut end_nodes: (usize, usize),
                                    n_nodes: usize,
-                                   xbounds: (f64, f64),
-                                   support: (f64, f64),
-                                   potential: &Vec<f64>)
-    -> Option<(f64, f64)>
+                                   xbounds: (Float, Float),
+                                   support: (Float, Float),
+                                   potential: &Vec<Float>)
+    -> Option<(Float, Float)>
 {
     /*
      * Finds a small interval enclosing the upper endpoint of the energy 
@@ -239,12 +242,12 @@ fn find_interval_enclosing_upper_boundry(mut energy_interval: (f64, f64),
 }
 
 fn min_index<I>(iter: I) -> usize
-    where I: IntoIterator<Item = f64>
+    where I: IntoIterator<Item = Float>
 {
     /*
-     * finds the index of a minimum of an IntoIterator over f64 elements
+     * finds the index of a minimum of an IntoIterator over Float elements
      */
-    let mut min = f64::INFINITY;
+    let mut min = Float::INFINITY;
     let mut mindex = 0;
 
     for (i, v) in iter.into_iter().enumerate() {
@@ -256,8 +259,8 @@ fn min_index<I>(iter: I) -> usize
     mindex
 }
                 
-fn numerov(E: f64, psi_0: f64, psi_1: f64, start_ind: usize, end_ind: usize, dx: f64,
-           potential: &Vec<f64>) -> Vec<f64>
+fn numerov(E: Float, psi_0: Float, psi_1: Float, start_ind: usize, end_ind: usize, dx: Float,
+           potential: &Vec<Float>) -> Vec<Float>
 {
     /*
      * Performs numerov integration from index start_ind of the potential
@@ -300,11 +303,11 @@ fn numerov(E: f64, psi_0: f64, psi_1: f64, start_ind: usize, end_ind: usize, dx:
     
 
 
-fn bidirectional_shooting(E: f64, 
-                          xbounds: (f64, f64), 
-                          support: (f64, f64), 
-                          potential: &Vec<f64>)
-    -> (State, f64)
+fn bidirectional_shooting(E: Float, 
+                          xbounds: (Float, Float), 
+                          support: (Float, Float), 
+                          potential: &Vec<Float>)
+    -> (State, Float)
 {
     /*
      * runs numerov from left and from right to b with energy E
@@ -321,7 +324,7 @@ fn bidirectional_shooting(E: f64,
 
     assert!(E < 0.);
 
-    let dx = (support.1 - support.0) / (potential.len() - 1) as f64;
+    let dx = (support.1 - support.0) / (potential.len() - 1) as Float;
 
     //let mut i = min_index(potential.iter().map(|v| (v-E).abs()));
     let mut i = potential.iter()
@@ -341,12 +344,12 @@ fn bidirectional_shooting(E: f64,
     // remember \int_0^\infty (e^{-\sqrt{2 E} x})^2 dx = 1/(2\sqrt{2 E})
     let norm_r_sqr = psi_r.iter()
         .map(|psi| psi.abs().powi(2))
-        .sum::<f64>()
+        .sum::<Float>()
         * dx
         + 1./(2.*(-2.*E).sqrt());
     let norm_l_sqr = psi_l.iter()
         .map(|psi| psi.abs().powi(2))
-        .sum::<f64>()
+        .sum::<Float>()
         * dx
         + 1./(2.*(-2.*E).sqrt());
 
@@ -374,11 +377,11 @@ fn bidirectional_shooting(E: f64,
         ((xbounds.1 - support.1) / dx).ceil() as usize);
 
     let psi_l_tail = (2..nbounds.0)
-        .map(|n| dx * n as f64)
+        .map(|n| dx * n as Float)
         .map(|x| (-(-2.*E).sqrt()*x).exp())
         .rev();
     let psi_r_tail = (2..nbounds.1)
-        .map(|n| dx * n as f64)
+        .map(|n| dx * n as Float)
         .map(|x| (-(-2.*E).sqrt()*x).exp());
 
     // Create the final wavefunction
@@ -397,7 +400,7 @@ fn bidirectional_shooting(E: f64,
 
     //println!("i: {}, length of pot: {}, energy_diff", i, potential.len());
 
-    //println!("{:?}", psi.wf.iter().map(|psi| psi.abs().powi(2)).sum::<f64>()*dx);
+    //println!("{:?}", psi.wf.iter().map(|psi| psi.abs().powi(2)).sum::<Float>()*dx);
 
     (psi, log_diff)
 }
@@ -410,7 +413,7 @@ mod tests {
     #[test]
     fn numerov() {
         let potential = (0..100)
-            .map(|i| 400. * ((i as f64 / 100.).powi(2) - (i as f64 / 100.)))
+            .map(|i| 400. * ((i as Float / 100.).powi(2) - (i as Float / 100.)))
             .collect();
         let psi = super::numerov(-200., 0.99, 1., 1, 98, 0.001, &potential);
         // It should look smooth...
@@ -420,7 +423,7 @@ mod tests {
     #[test]
     fn bidir() {
         //let potential = (0..100)
-            //.map(|i| 400. * ((i as f64 / 100.).powi(2) - (i as f64 / 100.)))
+            //.map(|i| 400. * ((i as Float / 100.).powi(2) - (i as Float / 100.)))
             //.collect();
         let potential = vec![-100.; 100];
         let psi = bidirectional_shooting(-50., (-1.0, 1.0), (-0.5,0.5), &potential);
