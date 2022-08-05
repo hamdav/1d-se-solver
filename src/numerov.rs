@@ -1,4 +1,6 @@
 use super::Float;
+use num_bigfloat::BigFloat;
+use num_bigfloat::{ONE,INF_POS,ZERO,TWO};
 
 
 #[derive(Debug)]
@@ -31,7 +33,7 @@ pub fn find_bound_states(xbounds: (Float, Float),
     // close to 0. but since that runs into problems with normalization
     // I cap it at E_min / 1000. No one will be able to tell the difference
     // anyway
-    let energy_interval = (E_min, E_min/1000.);
+    let energy_interval = (E_min, E_min/(BigFloat::from_f64(1000.0)));
 
     // Find the wavefunctions at the energy interval endpoints, for use
     // as the initial values of the bisection algorithm
@@ -91,7 +93,7 @@ pub fn find_bound_states(xbounds: (Float, Float),
                 // is which. To determine this, we calculate the overlap
                 // with the previously added wf and take the one that is
                 // most orthogonal.
-                let dx = (xbounds.1 - xbounds.0) / psi_lo.wf.len() as Float;
+                let dx = (xbounds.1 - xbounds.0) / BigFloat::from_u32(psi_lo.wf.len() as u32);
                 let overlaps = (
                     psi_lo.wf.iter().zip(rv[rv.len()-1].wf.iter())
                         .map(|(&pl, &p)| pl * p)
@@ -143,7 +145,7 @@ pub fn find_bound_states(xbounds: (Float, Float),
 fn count_nodes(psi: &State) -> usize {
     psi.wf.iter()
         .zip(psi.wf.iter().skip(1))
-        .map(|(&a, &b)| if a * b < 0. {1} else {0})
+        .map(|(&a, &b)| if a * b < ZERO {1} else {0})
         .sum::<usize>()
 }
 
@@ -168,13 +170,13 @@ fn simple_logdiff_bisect(mut energy_interval: (Float, Float),
     // }
 
     // Check that interval is valid
-    if end_log_diffs.0 * end_log_diffs.1 > 0. {
+    if end_log_diffs.0 * end_log_diffs.1 > ZERO {
         return None
     }
 
     // Base case: interval is small = return middle of interval.
-    let mid = (energy_interval.0 + energy_interval.1) / 2.;
-    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-13 {
+    let mid = (energy_interval.0 + energy_interval.1) / TWO;
+    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-13.into() {
         return Some(mid)
     }
 
@@ -182,7 +184,7 @@ fn simple_logdiff_bisect(mut energy_interval: (Float, Float),
     let (_, log_diff) = bidirectional_shooting(mid, xbounds, support, potential);
 
     // Change appropriate bound
-    if log_diff * end_log_diffs.0 <= 0. {
+    if log_diff * end_log_diffs.0 <= ZERO {
         end_log_diffs.1 = log_diff;
         energy_interval.1 = mid;
     } else {
@@ -207,7 +209,7 @@ fn find_interval_enclosing_upper_boundry(mut energy_interval: (Float, Float),
      */
 
     // Base case: interval is small = return lower end of interval.
-    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-13 {
+    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-13.into() {
         if end_nodes.0 == n_nodes && end_nodes.1 == n_nodes+1 {
             return Some(energy_interval)
         } else {
@@ -220,7 +222,7 @@ fn find_interval_enclosing_upper_boundry(mut energy_interval: (Float, Float),
     }
 
     // Do the bisection
-    let mid = (energy_interval.0 + energy_interval.1) / 2.;
+    let mid = (energy_interval.0 + energy_interval.1) / TWO;
     let (psi, log_diff) = bidirectional_shooting(mid, xbounds, support, potential);
     let mid_n_nodes = count_nodes(&psi);
     // println!("");
@@ -247,7 +249,7 @@ fn min_index<I>(iter: I) -> usize
     /*
      * finds the index of a minimum of an IntoIterator over Float elements
      */
-    let mut min = Float::INFINITY;
+    let mut min = INF_POS;
     let mut mindex = 0;
 
     for (i, v) in iter.into_iter().enumerate() {
@@ -291,11 +293,11 @@ fn numerov(E: Float, psi_0: Float, psi_1: Float, start_ind: usize, end_ind: usiz
         };
 
     for i in inds {
-        let a = 1. + dx.powi(2)/12. * 2.*(E - potential[i+1]);
-        let b = 1. - 5.*dx.powi(2)/12. * 2.*(E - potential[i]);
-        let c = 1. + dx.powi(2)/12. * 2.*(E - potential[i-1]);
+        let a = ONE + dx*dx/BigFloat::from_f64(6.) * (E - potential[i+1]);
+        let b = ONE - dx*dx/BigFloat::from_f64(5./6.) * (E - potential[i]);
+        let c = ONE + dx*dx/BigFloat::from_f64(6.) * (E - potential[i-1]);
 
-        psis.push((2.*b*psis[psis.len()-1] - c*psis[psis.len() - 2]) / a);
+        psis.push((TWO*b*psis[psis.len()-1] - c*psis[psis.len() - 2]) / a);
     }
 
     psis
@@ -322,9 +324,9 @@ fn bidirectional_shooting(E: Float,
      * Returns the concatinated wavefunction along with
      */
 
-    assert!(E < 0.);
+    assert!(E < ZERO);
 
-    let dx = (support.1 - support.0) / (potential.len() - 1) as Float;
+    let dx = (support.1 - support.0) / BigFloat::from_u32((potential.len() - 1) as u32);
 
     //let mut i = min_index(potential.iter().map(|v| (v-E).abs()));
     let mut i = potential.iter()
@@ -337,21 +339,21 @@ fn bidirectional_shooting(E: Float,
 
     // if V[i] - E is too large, do something... does it actually matter?
     // I don't think so
-    let psi_l = numerov(E, (-(-2.*E).sqrt() * dx).exp(), 1., 1, i, dx, &potential);
-    let psi_r = numerov(E, (-(-2.*E).sqrt() * dx).exp(), 1., potential.len()-2, i, dx, &potential);
+    let psi_l = numerov(E, (-(-TWO*E).sqrt() * dx).exp(), ONE, 1, i, dx, &potential);
+    let psi_r = numerov(E, (-(-TWO*E).sqrt() * dx).exp(), ONE, potential.len()-2, i, dx, &potential);
 
     // Find the norms of the right / left wavefunctions
     // remember \int_0^\infty (e^{-\sqrt{2 E} x})^2 dx = 1/(2\sqrt{2 E})
     let norm_r_sqr = psi_r.iter()
-        .map(|psi| psi.abs().powi(2))
+        .map(|psi| psi.abs()*psi.abs())
         .sum::<Float>()
         * dx
-        + 1./(2.*(-2.*E).sqrt());
+        + ONE/(TWO*(-TWO*E).sqrt());
     let norm_l_sqr = psi_l.iter()
-        .map(|psi| psi.abs().powi(2))
+        .map(|psi| psi.abs()*psi.abs())
         .sum::<Float>()
         * dx
-        + 1./(2.*(-2.*E).sqrt());
+        + ONE/(TWO*(-TWO*E).sqrt());
 
     // We must now find the constants with which we should multiply
     // psi_l and psi_r with such that when we concatinate them,
@@ -362,7 +364,7 @@ fn bidirectional_shooting(E: Float,
     // a^2 * norm_l_sqr + b^2 * norm_r_sqr = 1 ---- normalized
     // => b = a * psi_l[-1] / psi_r[-1]
     // a = sqrt(1 / (norm_l_sqr + norm_r_sqr * psi_l[-1]^2 / psi_r[-1]^2 ))
-    let a = -1. / (norm_l_sqr + norm_r_sqr * psi_l[psi_l.len()-1].powi(2) / psi_r[psi_r.len()-1].powi(2)).sqrt();
+    let a = -ONE / (norm_l_sqr + norm_r_sqr * psi_l[psi_l.len()-1].pow(&TWO) / psi_r[psi_r.len()-1].pow(&TWO)).sqrt();
     let b = a * psi_l[psi_l.len()-1] / psi_r[psi_r.len()-1];
 
 
@@ -373,16 +375,16 @@ fn bidirectional_shooting(E: Float,
 
     // Create the exponentially decreasing tails of the wavefunction
     // outside the potential
-    let nbounds = (((support.0 - xbounds.0) / dx).floor() as usize,
-        ((xbounds.1 - support.1) / dx).ceil() as usize);
+    let nbounds: (u32,u32) = (((support.0 - xbounds.0) / dx).floor().to_f64() as u32,
+        ((xbounds.1 - support.1) / dx).ceil().to_f64() as u32);
 
     let psi_l_tail = (2..nbounds.0)
-        .map(|n| dx * n as Float)
-        .map(|x| (-(-2.*E).sqrt()*x).exp())
+        .map(|n| dx * BigFloat::from_u32(n))
+        .map(|x| (-(-TWO*E).sqrt()*x).exp())
         .rev();
     let psi_r_tail = (2..nbounds.1)
-        .map(|n| dx * n as Float)
-        .map(|x| (-(-2.*E).sqrt()*x).exp());
+        .map(|n| dx * BigFloat::from_u32(n))
+        .map(|x| (-(-TWO*E).sqrt()*x).exp());
 
     // Create the final wavefunction
     let psi_wf = psi_l_tail.map(|psi| psi*a)

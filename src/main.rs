@@ -17,11 +17,12 @@ use speedy2d::window::{
 };
 use speedy2d::{Graphics2D, Window};
 
-//use num_bigfloat;
+use num_bigfloat;
+use num_bigfloat::{ONE,INF_POS,ZERO,TWO,BigFloat};
 
 mod numerov;
 
-type Float=f64;
+type Float=num_bigfloat::BigFloat;
 
 fn main()
 {
@@ -62,7 +63,7 @@ fn convert_curve(curve: Vec<Vector2<Float>>) -> Vec<Vector2<Float>>{
     rv
 }
 
-fn resample_curve(curve: Vec<Vector2<Float>>, n_samples: usize) -> Vec<Float> {
+fn resample_curve(curve: Vec<Vector2<Float>>, n_samples: u32) -> Vec<Float> {
     /*
      * Returns the same curve but linearly interpolated at n_samples equally
      * spaced points in the same span as the original curve. 
@@ -70,14 +71,14 @@ fn resample_curve(curve: Vec<Vector2<Float>>, n_samples: usize) -> Vec<Float> {
     let mut resampled_curve = vec![];
     let x_lo = curve[0].x;
     let x_hi = curve[curve.len()-1].x;
-    let dx = (x_hi - x_lo) / (n_samples as Float - 1.);
+    let dx = (x_hi - x_lo) / BigFloat::from_u32(n_samples - 1);
 
     // xs is the x coordinates of the original curve
     let xs = curve.iter().map(|v| v.x).collect::<Vec<Float>>();
 
     for i in 0..n_samples {
 
-        let x = x_lo + dx * i as Float;
+        let x = x_lo + dx * BigFloat::from_u32(i);
         // Check if the x is exactly at one of the original curves
         // points or if not, which two it is in between
         // If it's between two, interpolate and add that to the samples
@@ -90,7 +91,7 @@ fn resample_curve(curve: Vec<Vector2<Float>>, n_samples: usize) -> Vec<Float> {
                     resampled_curve.push(curve[curve.len()-1].y);
                 } else {
                     let t = (x - xs[ind-1]) / (xs[ind] - xs[ind-1]);
-                    let y = curve[ind-1].y * (1.-t) + curve[ind].y * t;
+                    let y = curve[ind-1].y * (ONE-t) + curve[ind].y * t;
                     resampled_curve.push(y);
                 }
             }
@@ -118,12 +119,12 @@ struct MyWindowHandler
 impl MyWindowHandler {
     fn new(window_size: Vector2<u32>) -> Self {
         MyWindowHandler{
-            energy_scale: 100.,
-            wf_scale: 3.,
+            energy_scale: BigFloat::from_f64(100.),
+            wf_scale: BigFloat::from_f64(3.),
             window_size,
             drawn_curve: Vec::new(),
             potential: Vec::new(),
-            support: (0., 0.),
+            support: (ZERO, ZERO),
             wfs: Vec::new(),
             mouse_button_down: false,
             marked_wf: None,
@@ -155,14 +156,14 @@ impl MyWindowHandler {
         // Extend the drawn potential by inserting zeros at the edges
         // Note that the support also needs to be altered
         let dx = (self.support.1 - self.support.0) 
-            / (self.potential.len() as Float - 1.);
+            / (BigFloat::from_u32(self.potential.len() as u32) - ONE);
         self.support.0 -= dx;
         self.support.1 += dx;
-        self.potential.insert(0, 0.);
-        self.potential.push(0.);
+        self.potential.insert(0, ZERO);
+        self.potential.push(ZERO);
 
         // find the bound states
-        self.wfs = numerov::find_bound_states((-1., 1.), self.support, &self.potential);
+        self.wfs = numerov::find_bound_states((-ONE, ONE), self.support, &self.potential);
         // If this recalculation made our marked state not exist,
         // stop marking it
         if let Some(idx) = self.marked_wf {
@@ -178,8 +179,8 @@ impl MyWindowHandler {
          * 1,1 on top right corner
          */
         Vector2{
-            x: pxpos.x as Float / (self.window_size.x as Float / 2.)  - 1.,
-            y: -pxpos.y as Float / (self.window_size.y as Float / 2.)  + 1.,
+            x: BigFloat::from_f32(pxpos.x / (self.window_size.x as f32 / 2.)  - 1.),
+            y: BigFloat::from_f32(-pxpos.y / (self.window_size.y as f32 / 2.)  + 1.),
         }
     }
     fn phys2px(&self, physpos: Vector2<Float>) -> Vector2<f32> {
@@ -189,8 +190,8 @@ impl MyWindowHandler {
          * 1,1 on top right corner
          */
         Vector2{
-            x: (physpos.x as f32 + 1.) * (self.window_size.x as f32 / 2.),
-            y: (1. - physpos.y as f32) * (self.window_size.y as f32 / 2.),
+            x: (physpos.x.to_f32() + 1.) * (self.window_size.x as f32 / 2.),
+            y: (1. - physpos.y.to_f32()) * (self.window_size.y as f32 / 2.),
 
         }
     }
@@ -211,10 +212,10 @@ impl WindowHandler for MyWindowHandler
         graphics.clear_screen(Color::from_rgb(0.1, 0.1, 0.1));
 
         // Draw coordinate axes
-        graphics.draw_line(self.phys2px(Vector2{x: -1., y: 0.}), 
-                           self.phys2px(Vector2{x:  1., y: 0.}), 1.0, Color::GRAY);
-        graphics.draw_line(self.phys2px(Vector2{x: 0., y: -1.}), 
-                           self.phys2px(Vector2{x: 0., y:  1.}), 1.0, Color::GRAY);
+        graphics.draw_line(self.phys2px(Vector2{x: -ONE, y: ZERO}), 
+                           self.phys2px(Vector2{x:  ONE, y: ZERO}), 1.0, Color::GRAY);
+        graphics.draw_line(self.phys2px(Vector2{x: ZERO, y: -ONE}), 
+                           self.phys2px(Vector2{x: ZERO, y:  ONE}), 1.0, Color::GRAY);
 
         // Draw the curve
         for (v1, v2) in self.drawn_curve.iter().zip(self.drawn_curve.iter().skip(1)) {
@@ -222,9 +223,9 @@ impl WindowHandler for MyWindowHandler
         }
 
         //Draw the potential
-        let dx = (self.support.1 - self.support.0) / (self.potential.len() as Float - 1.);
+        let dx = (self.support.1 - self.support.0) / (BigFloat::from_u32(self.potential.len() as u32) - ONE);
         for i in 1..self.potential.len() {
-            let x = self.support.0 + i as Float * dx;
+            let x = self.support.0 + BigFloat::from_u32(i as u32) * dx;
             graphics.draw_line(
                 self.phys2px(Vector2{
                     x: x - dx, y: self.potential[i-1] / self.energy_scale}), 
@@ -237,7 +238,7 @@ impl WindowHandler for MyWindowHandler
         // Draw the wf energy lines
         for (idx, wf) in self.wfs.iter().enumerate() {
 
-            let dx = (wf.x_right - wf.x_left) / (wf.wf.len() -1) as Float;
+            let dx = (wf.x_right - wf.x_left) / BigFloat::from_u32(wf.wf.len() as u32 - 1);
             for i in 0..wf.wf.len()-1 {
                 let color = if let Some(marked_idx) = self.marked_wf {
                     if marked_idx == idx {Color::GREEN} 
@@ -245,22 +246,22 @@ impl WindowHandler for MyWindowHandler
                 } else { Color::GRAY };
                 graphics.draw_line(
                     self.phys2px(Vector2{
-                        x: wf.x_left + i as Float * dx, y: wf.energy / self.energy_scale}), 
+                        x: wf.x_left + BigFloat::from_u32(i as u32) * dx, y: wf.energy / self.energy_scale}), 
                     self.phys2px(Vector2{
-                        x: wf.x_left + (i+1) as Float * dx, y: wf.energy / self.energy_scale}),
-                    3.0, Color::from_rgba(color.r(), color.g(), color.b(), wf.wf[i].powi(2) as f32))
+                        x: wf.x_left + BigFloat::from_u32((i+1) as u32) * dx, y: wf.energy / self.energy_scale}),
+                    3.0, Color::from_rgba(color.r(), color.g(), color.b(), wf.wf[i].pow(&TWO).to_f32()))
             }
         }
         // Draw the wavefunction
         if let Some(idx) = self.marked_wf {
             let wf = &self.wfs[idx];
-            let dx = (wf.x_right - wf.x_left) / (wf.wf.len() -1) as Float;
+            let dx = (wf.x_right - wf.x_left) / BigFloat::from_u32(wf.wf.len() as u32 - 1);
             for i in 0..wf.wf.len()-1 {
                 graphics.draw_line(
                     self.phys2px(Vector2{
-                        x: wf.x_left + i as Float * dx, y: wf.wf[i] / self.wf_scale}), 
+                        x: wf.x_left + BigFloat::from_u32(i as u32) * dx, y: wf.wf[i] / self.wf_scale}), 
                     self.phys2px(Vector2{
-                        x: wf.x_left + (i+1) as Float * dx, y: wf.wf[i+1] / self.wf_scale}),
+                        x: wf.x_left + BigFloat::from_u32((i+1) as u32) * dx, y: wf.wf[i+1] / self.wf_scale}),
                     3.0, Color::GREEN);
             }
         }
@@ -308,14 +309,14 @@ impl WindowHandler for MyWindowHandler
         // Press K to decrease the energy scaling,
         // effectively decreasing the depth of the potential
         if virtual_key_code == Some(VirtualKeyCode::K) {
-            self.energy_scale /= 1.01;
+            self.energy_scale /= BigFloat::from_f64(1.01);
             self.update_potential_and_wf();
             helper.request_redraw();
         }
         // Press J to increase the energy scaling,
         // effectively increasing the depth of the potential
         if virtual_key_code == Some(VirtualKeyCode::J) {
-            self.energy_scale *= 1.01;
+            self.energy_scale *= BigFloat::from_f64(1.01);
             self.update_potential_and_wf();
             helper.request_redraw();
         }
@@ -354,12 +355,12 @@ impl WindowHandler for MyWindowHandler
         }
         // Press H to decrease the wf scaling,
         if virtual_key_code == Some(VirtualKeyCode::H) {
-            self.wf_scale /= 1.03;
+            self.wf_scale /= BigFloat::from_f64(1.03);
             helper.request_redraw();
         }
         // Press G to increase the wf scaling,
         if virtual_key_code == Some(VirtualKeyCode::G) {
-            self.wf_scale *= 1.03;
+            self.wf_scale *= BigFloat::from_f64(1.03);
             helper.request_redraw();
         }
     }
