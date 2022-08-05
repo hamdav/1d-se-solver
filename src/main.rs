@@ -17,15 +17,18 @@ use speedy2d::window::{
 };
 use speedy2d::{Graphics2D, Window};
 
+use f128::f128;
+
 mod numerov;
 
 fn main()
 {
+    let f: f128 = 1.
 
-    let window =
-        Window::new_centered("1D SE solver", (1280, 960)).unwrap();
+    // let window =
+    //     Window::new_centered("1D SE solver", (1280, 960)).unwrap();
 
-    window.run_loop(MyWindowHandler::new(Vector2{x: 1280, y:960}));
+    // window.run_loop(MyWindowHandler::new(Vector2{x: 1280, y:960}));
 }
 
 fn convert_curve(curve: Vec<Vector2<f64>>) -> Vec<Vector2<f64>>{
