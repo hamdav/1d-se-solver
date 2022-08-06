@@ -145,7 +145,7 @@ impl MyWindowHandler {
 
         // Calculate the potential by resampling and converting from
         // physical coordinates to energy coordinates
-        self.potential = resample_curve(convert_curve(phys_curve), 500)
+        self.potential = resample_curve(convert_curve(phys_curve), 300)
             .iter()
             .map(|v| self.energy_scale * v)
             .collect();
@@ -359,6 +359,35 @@ impl WindowHandler for MyWindowHandler
             self.wf_scale *= 1.03;
             helper.request_redraw();
         }
+
+        // TEMPORARY FOR BUGS
+        // Press D and F to change the energy which the wavefunction is calculated
+        // from.
+        if virtual_key_code == Some(VirtualKeyCode::F) {
+            if let Some(i) = self.marked_wf {
+                let new_energy = self.wfs[i].energy * 1.0001;
+                let (new_psi, _) = numerov::bidirectional_shooting(new_energy,
+                                                                   (-1., 1.),
+                                                                   self.support,
+                                                                   &self.potential);
+                self.wfs[i] = new_psi;
+                helper.request_redraw();
+            }
+
+        }
+        if virtual_key_code == Some(VirtualKeyCode::D) {
+            if let Some(i) = self.marked_wf {
+                let new_energy = self.wfs[i].energy / 1.0001;
+                let (new_psi, _) = numerov::bidirectional_shooting(new_energy,
+                                                                   (-1., 1.),
+                                                                   self.support,
+                                                                   &self.potential);
+                self.wfs[i] = new_psi;
+                helper.request_redraw();
+            }
+
+        }
+
     }
     fn on_resize(&mut self, _helper: &mut WindowHelper, size_pixels: Vector2<u32>)
     {

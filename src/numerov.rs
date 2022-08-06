@@ -89,32 +89,36 @@ pub fn find_bound_states(xbounds: (f64, f64),
                 // at each of the boundaries and take the one where the
                 // derivative is largest
                 //
-                let dx = interval.1 - interval.0;
-                let (psi_lo_2, log_diff_lo_2) = bidirectional_shooting(
-                    lower_end + dx, xbounds, support, potential);
-                let (psi_hi_2, log_diff_hi_2) = bidirectional_shooting(
-                    interval.0 - dx, xbounds, support, potential);
-                // kx + m = 0 => x = -m / k
-                let intercepts = (-log_diff_lo * dx / 
-                                  (log_diff_lo - log_diff_lo_2),
-                                  -log_diff_hi * dx /
-                                  (log_diff_hi - log_diff_hi_2));
-                // 
-                if intercepts.0 >= 0. && intercepts.1 >= 0.
-                {
-                    println!("Both: {:?}", intercepts);
-                    if intercepts.0 < intercepts.1 {
-                        rv.push(psi_lo);
-                    } else {
-                        rv.push(psi_hi);
-                    }
-                } else if intercepts.0 >= 0. && intercepts.1 < 0. {
-                    rv.push(psi_lo);
-                } else if intercepts.0 < 0. && intercepts.1 >= 0. {
-                    rv.push(psi_hi);
-                } else {
-                    println!("Failed endpoint choosing");
-                }
+                // Let's try pushing both just to see how they look...
+                rv.push(psi_lo);
+                rv.push(psi_hi);
+                //
+                //let dx = interval.1 - interval.0;
+                //let (psi_lo_2, log_diff_lo_2) = bidirectional_shooting(
+                //    lower_end + dx, xbounds, support, potential);
+                //let (psi_hi_2, log_diff_hi_2) = bidirectional_shooting(
+                //    interval.0 - dx, xbounds, support, potential);
+                //// kx + m = 0 => x = -m / k
+                //let intercepts = (-log_diff_lo * dx / 
+                //                  (log_diff_lo - log_diff_lo_2),
+                //                  -log_diff_hi * dx /
+                //                  (log_diff_hi - log_diff_hi_2));
+                //// 
+                //if intercepts.0 >= 0. && intercepts.1 >= 0.
+                //{
+                //    println!("Both: {:?}", intercepts);
+                //    if intercepts.0 < intercepts.1 {
+                //        rv.push(psi_lo);
+                //    } else {
+                //        rv.push(psi_hi);
+                //    }
+                //} else if intercepts.0 >= 0. && intercepts.1 < 0. {
+                //    rv.push(psi_lo);
+                //} else if intercepts.0 < 0. && intercepts.1 >= 0. {
+                //    rv.push(psi_hi);
+                //} else {
+                //    println!("Failed endpoint choosing");
+                //}
             }
 
             // Prepare for next loop by saving the lower bound
@@ -311,7 +315,8 @@ fn numerov(E: f64, psi_0: f64, psi_1: f64, start_ind: usize, end_ind: usize, dx:
     
 
 
-fn bidirectional_shooting(E: f64, 
+// TEMPORARILY PUB FOR D AND F (SEE MAIN FILE) REMOVE PUB LATER
+pub fn bidirectional_shooting(E: f64, 
                           xbounds: (f64, f64), 
                           support: (f64, f64), 
                           potential: &Vec<f64>)
