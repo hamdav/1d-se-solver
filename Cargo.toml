@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 speedy2d = "1.7"
 # rustc_apfloat = "0.1.3"
-num-bigfloat = "1.3.1"
+# num-bigfloat = "1.3.1"
+rug = "1.16.0"

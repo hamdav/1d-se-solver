@@ -1,4 +1,9 @@
 use super::Float;
+use rug::ops::Pow;
+use rug;
+const ZERO:rug::Float = rug::Float::with_val(128, 0.);
+const ONE:rug::Float = rug::Float::with_val(128, 1.);
+const TWO:rug::Float = rug::Float::with_val(128, 2.);
 
 
 #[derive(Debug)]
@@ -91,22 +96,22 @@ pub fn find_bound_states(xbounds: (Float, Float),
                 // is which. To determine this, we calculate the overlap
                 // with the previously added wf and take the one that is
                 // most orthogonal.
-                let dx = (xbounds.1 - xbounds.0) / psi_lo.wf.len() as Float;
-                let overlaps = (
-                    psi_lo.wf.iter().zip(rv[rv.len()-1].wf.iter())
-                        .map(|(&pl, &p)| pl * p)
-                        .sum::<Float>() * dx,
-                    psi_hi.wf.iter().zip(rv[rv.len()-1].wf.iter())
-                        .map(|(&ph, &p)| ph * p)
-                        .sum::<Float>() * dx
-                    );
+                // let dx = (xbounds.1 - xbounds.0) / psi_lo.wf.len();
+                // let overlaps = (
+                //     dx * Float::sum(
+                //         psi_lo.wf.iter().zip(rv[rv.len()-1].wf.iter())
+                //         .map(|(&pl, &p)| pl * p)).complete(128),
+                //     dx * Float::sum(
+                //         psi_hi.wf.iter().zip(rv[rv.len()-1].wf.iter())
+                //         .map(|(&ph, &p)| ph * p))
+                //     );
 
-                println!("overlaps: {:?}", overlaps);
-                if overlaps.0 < overlaps.1 {
-                    rv.push(psi_lo);
-                } else {
-                    rv.push(psi_hi);
-                }
+                // println!("overlaps: {:?}", overlaps);
+                // if overlaps.0 < overlaps.1 {
+                //     rv.push(psi_lo);
+                // } else {
+                //     rv.push(psi_hi);
+                // }
             }
 
             // Prepare for next loop by saving the lower bound
@@ -247,7 +252,7 @@ fn min_index<I>(iter: I) -> usize
     /*
      * finds the index of a minimum of an IntoIterator over Float elements
      */
-    let mut min = Float::INFINITY;
+    let mut min = Float::with_val(128, rug::float::Special::Infinity);
     let mut mindex = 0;
 
     for (i, v) in iter.into_iter().enumerate() {
@@ -291,9 +296,9 @@ fn numerov(E: Float, psi_0: Float, psi_1: Float, start_ind: usize, end_ind: usiz
         };
 
     for i in inds {
-        let a = 1. + dx.powi(2)/12. * 2.*(E - potential[i+1]);
-        let b = 1. - 5.*dx.powi(2)/12. * 2.*(E - potential[i]);
-        let c = 1. + dx.powi(2)/12. * 2.*(E - potential[i-1]);
+        let a = 1. + dx.pow(2)/12. * 2.*(E - potential[i+1]);
+        let b = 1. - 5.*dx.pow(2)/12. * 2.*(E - potential[i]);
+        let c = 1. + dx.pow(2)/12. * 2.*(E - potential[i-1]);
 
         psis.push((2.*b*psis[psis.len()-1] - c*psis[psis.len() - 2]) / a);
     }
@@ -324,7 +329,7 @@ fn bidirectional_shooting(E: Float,
 
     assert!(E < 0.);
 
-    let dx = (support.1 - support.0) / (potential.len() - 1) as Float;
+    let dx = (support.1 - support.0) / (potential.len() - 1);
 
     //let mut i = min_index(potential.iter().map(|v| (v-E).abs()));
     let mut i = potential.iter()
@@ -337,21 +342,22 @@ fn bidirectional_shooting(E: Float,
 
     // if V[i] - E is too large, do something... does it actually matter?
     // I don't think so
-    let psi_l = numerov(E, (-(-2.*E).sqrt() * dx).exp(), 1., 1, i, dx, &potential);
-    let psi_r = numerov(E, (-(-2.*E).sqrt() * dx).exp(), 1., potential.len()-2, i, dx, &potential);
+    let psi_l = numerov(E, (-(-TWO*E).sqrt() * dx).exp(), ONE, 1, i, dx, &potential);
+    let psi_r = numerov(E, (-(-TWO*E).sqrt() * dx).exp(), ONE, potential.len()-2, i, dx, &potential);
 
     // Find the norms of the right / left wavefunctions
     // remember \int_0^\infty (e^{-\sqrt{2 E} x})^2 dx = 1/(2\sqrt{2 E})
-    let norm_r_sqr = psi_r.iter()
-        .map(|psi| psi.abs().powi(2))
-        .sum::<Float>()
+    let norm_r_sqr = Float::with_val(128, Float::sum(
+        psi_r.iter()
+        .map(|psi| psi.abs() * psi.abs())
+        .collect::<Vec<Float>>().iter()))
         * dx
-        + 1./(2.*(-2.*E).sqrt());
-    let norm_l_sqr = psi_l.iter()
-        .map(|psi| psi.abs().powi(2))
-        .sum::<Float>()
+        + 1./(2.*(-TWO*E).sqrt());
+    let norm_l_sqr = Float::with_val(128, Float::sum(psi_l.iter()
+        .map(|&psi| psi.abs() * psi.abs())
+        .collect::<Vec<Float>>().iter()))
         * dx
-        + 1./(2.*(-2.*E).sqrt());
+        + 1./(2.*(-TWO*E).sqrt());
 
     // We must now find the constants with which we should multiply
     // psi_l and psi_r with such that when we concatinate them,
@@ -362,7 +368,7 @@ fn bidirectional_shooting(E: Float,
     // a^2 * norm_l_sqr + b^2 * norm_r_sqr = 1 ---- normalized
     // => b = a * psi_l[-1] / psi_r[-1]
     // a = sqrt(1 / (norm_l_sqr + norm_r_sqr * psi_l[-1]^2 / psi_r[-1]^2 ))
-    let a = -1. / (norm_l_sqr + norm_r_sqr * psi_l[psi_l.len()-1].powi(2) / psi_r[psi_r.len()-1].powi(2)).sqrt();
+    let a = -ONE / Float::with_val(128, (norm_l_sqr + norm_r_sqr * psi_l[psi_l.len()-1].pow(2) / psi_r[psi_r.len()-1].pow(2))).sqrt();
     let b = a * psi_l[psi_l.len()-1] / psi_r[psi_r.len()-1];
 
 
@@ -373,16 +379,16 @@ fn bidirectional_shooting(E: Float,
 
     // Create the exponentially decreasing tails of the wavefunction
     // outside the potential
-    let nbounds = (((support.0 - xbounds.0) / dx).floor() as usize,
-        ((xbounds.1 - support.1) / dx).ceil() as usize);
+    let nbounds = (((support.0 - xbounds.0) / dx).floor().to_u32_saturating().unwrap(),
+        ((xbounds.1 - support.1) / dx).ceil().to_u32_saturating().unwrap());
 
     let psi_l_tail = (2..nbounds.0)
-        .map(|n| dx * n as Float)
-        .map(|x| (-(-2.*E).sqrt()*x).exp())
+        .map(|n| dx * n)
+        .map(|x| (-(-TWO*E).sqrt()*x).exp())
         .rev();
     let psi_r_tail = (2..nbounds.1)
-        .map(|n| dx * n as Float)
-        .map(|x| (-(-2.*E).sqrt()*x).exp());
+        .map(|n| dx * n)
+        .map(|x| (-(-TWO*E).sqrt()*x).exp());
 
     // Create the final wavefunction
     let psi_wf = psi_l_tail.map(|psi| psi*a)
