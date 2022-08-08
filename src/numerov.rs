@@ -1,4 +1,5 @@
 use super::Float;
+use twofloat::TwoFloat;
 
 
 #[derive(Debug)]
@@ -91,14 +92,16 @@ pub fn find_bound_states(xbounds: (Float, Float),
                 // is which. To determine this, we calculate the overlap
                 // with the previously added wf and take the one that is
                 // most orthogonal.
-                let dx = (xbounds.1 - xbounds.0) / psi_lo.wf.len() as Float;
+                let dx = (xbounds.1 - xbounds.0) / TwoFloat::from(psi_lo.wf.len() as u32);
                 let overlaps = (
                     psi_lo.wf.iter().zip(rv[rv.len()-1].wf.iter())
                         .map(|(&pl, &p)| pl * p)
-                        .sum::<Float>() * dx,
+                        .reduce(|a, b| a+b)
+                        .unwrap() * dx,
                     psi_hi.wf.iter().zip(rv[rv.len()-1].wf.iter())
                         .map(|(&ph, &p)| ph * p)
-                        .sum::<Float>() * dx
+                        .reduce(|a, b| a+b)
+                        .unwrap() * dx,
                     );
 
                 println!("overlaps: {:?}", overlaps);
@@ -324,7 +327,7 @@ fn bidirectional_shooting(E: Float,
 
     assert!(E < 0.);
 
-    let dx = (support.1 - support.0) / (potential.len() - 1) as Float;
+    let dx = (support.1 - support.0) / TwoFloat::from((potential.len() - 1) as u32);
 
     //let mut i = min_index(potential.iter().map(|v| (v-E).abs()));
     let mut i = potential.iter()
@@ -337,20 +340,20 @@ fn bidirectional_shooting(E: Float,
 
     // if V[i] - E is too large, do something... does it actually matter?
     // I don't think so
-    let psi_l = numerov(E, (-(-2.*E).sqrt() * dx).exp(), 1., 1, i, dx, &potential);
-    let psi_r = numerov(E, (-(-2.*E).sqrt() * dx).exp(), 1., potential.len()-2, i, dx, &potential);
+    let psi_l = numerov(E, (-(-2.*E).sqrt() * dx).exp(), TwoFloat::from(1.), 1, i, dx, &potential);
+    let psi_r = numerov(E, (-(-2.*E).sqrt() * dx).exp(), TwoFloat::from(1.), potential.len()-2, i, dx, &potential);
 
     // Find the norms of the right / left wavefunctions
     // remember \int_0^\infty (e^{-\sqrt{2 E} x})^2 dx = 1/(2\sqrt{2 E})
     let norm_r_sqr = psi_r.iter()
         .map(|psi| psi.abs().powi(2))
-        .sum::<Float>()
-        * dx
+        .reduce(|a, b| a+b)
+        .unwrap() * dx
         + 1./(2.*(-2.*E).sqrt());
     let norm_l_sqr = psi_l.iter()
         .map(|psi| psi.abs().powi(2))
-        .sum::<Float>()
-        * dx
+        .reduce(|a, b| a+b)
+        .unwrap() * dx
         + 1./(2.*(-2.*E).sqrt());
 
     // We must now find the constants with which we should multiply
@@ -373,15 +376,15 @@ fn bidirectional_shooting(E: Float,
 
     // Create the exponentially decreasing tails of the wavefunction
     // outside the potential
-    let nbounds = (((support.0 - xbounds.0) / dx).floor() as usize,
-        ((xbounds.1 - support.1) / dx).ceil() as usize);
+    let nbounds = (((support.0 - xbounds.0) / dx).floor().hi() as usize,
+        ((xbounds.1 - support.1) / dx).ceil().hi() as usize);
 
     let psi_l_tail = (2..nbounds.0)
-        .map(|n| dx * n as Float)
+        .map(|n| dx * TwoFloat::from(n as u32))
         .map(|x| (-(-2.*E).sqrt()*x).exp())
         .rev();
     let psi_r_tail = (2..nbounds.1)
-        .map(|n| dx * n as Float)
+        .map(|n| dx * TwoFloat::from(n as u32))
         .map(|x| (-(-2.*E).sqrt()*x).exp());
 
     // Create the final wavefunction

@@ -534,6 +534,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "hexf"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6618f4550dcd7d9ddb5126ab18d48dfa31aa952159cb832390bda464d3bc827e"
+dependencies = [
+ "hexf-parse",
+ "syn",
+]
+
+[[package]]
+name = "hexf-parse"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
+
+[[package]]
 name = "ident_case"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -797,12 +813,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num-bigfloat"
-version = "1.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb8e28d80ca8cfd5842a8fd84819abc5240beb5a0c62f46b8cd4c6b457600ae3"
-
-[[package]]
 name = "num-integer"
 version = "0.1.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -988,8 +998,8 @@ dependencies = [
 name = "quantum_1d_solver"
 version = "0.1.0"
 dependencies = [
- "num-bigfloat",
  "speedy2d",
+ "twofloat",
 ]
 
 [[package]]
@@ -1221,6 +1231,16 @@ name = "ttf-parser"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e5d7cd7ab3e47dda6e56542f4bbf3824c15234958c6e1bd6aaa347e93499fdc"
+
+[[package]]
+name = "twofloat"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5ae475212d79a7499f4c4f22578805c1f606fbc84ea5795fcfeb48137ea6c13"
+dependencies = [
+ "hexf",
+ "num-traits",
+]
 
 [[package]]
 name = "unicode-ident"

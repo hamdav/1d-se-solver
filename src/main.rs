@@ -17,14 +17,24 @@ use speedy2d::window::{
 };
 use speedy2d::{Graphics2D, Window};
 
-//use num_bigfloat;
+use twofloat::TwoFloat;
 
 mod numerov;
 
-type Float=f64;
+type Float=TwoFloat;
+
 
 fn main()
 {
+    let f = TwoFloat::from(3.4);
+    println!("{}", f+3.4);
+    println!("{}", 3.4+f);
+    println!("{}", 3.4/f);
+    println!("{}", f/3.4);
+    let q = f;
+    println!("{}", f.powi(2));
+
+
     let window =
         Window::new_centered("1D SE solver", (1280, 960)).unwrap();
 
@@ -70,14 +80,14 @@ fn resample_curve(curve: Vec<Vector2<Float>>, n_samples: usize) -> Vec<Float> {
     let mut resampled_curve = vec![];
     let x_lo = curve[0].x;
     let x_hi = curve[curve.len()-1].x;
-    let dx = (x_hi - x_lo) / (n_samples as Float - 1.);
+    let dx = (x_hi - x_lo) / (Float::from(n_samples as u32) - 1.);
 
     // xs is the x coordinates of the original curve
     let xs = curve.iter().map(|v| v.x).collect::<Vec<Float>>();
 
     for i in 0..n_samples {
 
-        let x = x_lo + dx * i as Float;
+        let x = x_lo + dx * Float::from(i as u32);
         // Check if the x is exactly at one of the original curves
         // points or if not, which two it is in between
         // If it's between two, interpolate and add that to the samples
@@ -118,12 +128,12 @@ struct MyWindowHandler
 impl MyWindowHandler {
     fn new(window_size: Vector2<u32>) -> Self {
         MyWindowHandler{
-            energy_scale: 100.,
-            wf_scale: 3.,
+            energy_scale: TwoFloat::from(100.),
+            wf_scale: TwoFloat::from(3.),
             window_size,
             drawn_curve: Vec::new(),
             potential: Vec::new(),
-            support: (0., 0.),
+            support: (TwoFloat::from(0.), TwoFloat::from(0.)),
             wfs: Vec::new(),
             mouse_button_down: false,
             marked_wf: None,
@@ -155,14 +165,14 @@ impl MyWindowHandler {
         // Extend the drawn potential by inserting zeros at the edges
         // Note that the support also needs to be altered
         let dx = (self.support.1 - self.support.0) 
-            / (self.potential.len() as Float - 1.);
+            / (Float::from(self.potential.len() as u32) - 1.);
         self.support.0 -= dx;
         self.support.1 += dx;
-        self.potential.insert(0, 0.);
-        self.potential.push(0.);
+        self.potential.insert(0, TwoFloat::from(0.));
+        self.potential.push(TwoFloat::from(0.));
 
         // find the bound states
-        self.wfs = numerov::find_bound_states((-1., 1.), self.support, &self.potential);
+        self.wfs = numerov::find_bound_states((TwoFloat::from(-1.), TwoFloat::from(1.)), self.support, &self.potential);
         // If this recalculation made our marked state not exist,
         // stop marking it
         if let Some(idx) = self.marked_wf {
@@ -178,8 +188,8 @@ impl MyWindowHandler {
          * 1,1 on top right corner
          */
         Vector2{
-            x: pxpos.x as Float / (self.window_size.x as Float / 2.)  - 1.,
-            y: -pxpos.y as Float / (self.window_size.y as Float / 2.)  + 1.,
+            x: TwoFloat::from(pxpos.x / (self.window_size.x as f32 / 2.)  - 1.),
+            y: TwoFloat::from(-pxpos.y / (self.window_size.y as f32 / 2.)  + 1.),
         }
     }
     fn phys2px(&self, physpos: Vector2<Float>) -> Vector2<f32> {
@@ -189,8 +199,8 @@ impl MyWindowHandler {
          * 1,1 on top right corner
          */
         Vector2{
-            x: (physpos.x as f32 + 1.) * (self.window_size.x as f32 / 2.),
-            y: (1. - physpos.y as f32) * (self.window_size.y as f32 / 2.),
+            x: (1.0 + physpos.x.hi() as f32) * (self.window_size.x as f32 / 2.),
+            y: (1.0 - physpos.y.hi() as f32) * (self.window_size.y as f32 / 2.),
 
         }
     }
@@ -211,10 +221,10 @@ impl WindowHandler for MyWindowHandler
         graphics.clear_screen(Color::from_rgb(0.1, 0.1, 0.1));
 
         // Draw coordinate axes
-        graphics.draw_line(self.phys2px(Vector2{x: -1., y: 0.}), 
-                           self.phys2px(Vector2{x:  1., y: 0.}), 1.0, Color::GRAY);
-        graphics.draw_line(self.phys2px(Vector2{x: 0., y: -1.}), 
-                           self.phys2px(Vector2{x: 0., y:  1.}), 1.0, Color::GRAY);
+        graphics.draw_line(self.phys2px(Vector2{x: TwoFloat::from(-1.), y: TwoFloat::from(0.)}), 
+                           self.phys2px(Vector2{x:  TwoFloat::from(1.), y: TwoFloat::from(0.)}), 1.0, Color::GRAY);
+        graphics.draw_line(self.phys2px(Vector2{x: TwoFloat::from(0.), y: TwoFloat::from(-1.)}), 
+                           self.phys2px(Vector2{x: TwoFloat::from(0.), y:  TwoFloat::from(1.)}), 1.0, Color::GRAY);
 
         // Draw the curve
         for (v1, v2) in self.drawn_curve.iter().zip(self.drawn_curve.iter().skip(1)) {
@@ -222,9 +232,9 @@ impl WindowHandler for MyWindowHandler
         }
 
         //Draw the potential
-        let dx = (self.support.1 - self.support.0) / (self.potential.len() as Float - 1.);
+        let dx = (self.support.1 - self.support.0) / (TwoFloat::from(self.potential.len() as u32) - 1.);
         for i in 1..self.potential.len() {
-            let x = self.support.0 + i as Float * dx;
+            let x = self.support.0 + TwoFloat::from(i as u32) * dx;
             graphics.draw_line(
                 self.phys2px(Vector2{
                     x: x - dx, y: self.potential[i-1] / self.energy_scale}), 
@@ -237,7 +247,7 @@ impl WindowHandler for MyWindowHandler
         // Draw the wf energy lines
         for (idx, wf) in self.wfs.iter().enumerate() {
 
-            let dx = (wf.x_right - wf.x_left) / (wf.wf.len() -1) as Float;
+            let dx = (wf.x_right - wf.x_left) / TwoFloat::from((wf.wf.len() -1) as u32);
             for i in 0..wf.wf.len()-1 {
                 let color = if let Some(marked_idx) = self.marked_wf {
                     if marked_idx == idx {Color::GREEN} 
@@ -245,22 +255,22 @@ impl WindowHandler for MyWindowHandler
                 } else { Color::GRAY };
                 graphics.draw_line(
                     self.phys2px(Vector2{
-                        x: wf.x_left + i as Float * dx, y: wf.energy / self.energy_scale}), 
+                        x: wf.x_left + TwoFloat::from(i as u32) * dx, y: wf.energy / self.energy_scale}), 
                     self.phys2px(Vector2{
-                        x: wf.x_left + (i+1) as Float * dx, y: wf.energy / self.energy_scale}),
-                    3.0, Color::from_rgba(color.r(), color.g(), color.b(), wf.wf[i].powi(2) as f32))
+                        x: wf.x_left + TwoFloat::from((i+1) as u32) * dx, y: wf.energy / self.energy_scale}),
+                    3.0, Color::from_rgba(color.r(), color.g(), color.b(), wf.wf[i].powi(2).hi() as f32))
             }
         }
         // Draw the wavefunction
         if let Some(idx) = self.marked_wf {
             let wf = &self.wfs[idx];
-            let dx = (wf.x_right - wf.x_left) / (wf.wf.len() -1) as Float;
+            let dx = (wf.x_right - wf.x_left) / TwoFloat::from((wf.wf.len() -1) as u32);
             for i in 0..wf.wf.len()-1 {
                 graphics.draw_line(
                     self.phys2px(Vector2{
-                        x: wf.x_left + i as Float * dx, y: wf.wf[i] / self.wf_scale}), 
+                        x: wf.x_left + TwoFloat::from(i as u32) * dx, y: wf.wf[i] / self.wf_scale}), 
                     self.phys2px(Vector2{
-                        x: wf.x_left + (i+1) as Float * dx, y: wf.wf[i+1] / self.wf_scale}),
+                        x: wf.x_left + TwoFloat::from((i+1) as u32) * dx, y: wf.wf[i+1] / self.wf_scale}),
                     3.0, Color::GREEN);
             }
         }
