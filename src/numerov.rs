@@ -92,24 +92,29 @@ pub fn find_bound_states(xbounds: (Float, Float),
                 // is which. To determine this, we calculate the overlap
                 // with the previously added wf and take the one that is
                 // most orthogonal.
-                let dx = (xbounds.1 - xbounds.0) / TwoFloat::from(psi_lo.wf.len() as u32);
-                let overlaps = (
-                    psi_lo.wf.iter().zip(rv[rv.len()-1].wf.iter())
-                        .map(|(&pl, &p)| pl * p)
-                        .reduce(|a, b| a+b)
-                        .unwrap() * dx,
-                    psi_hi.wf.iter().zip(rv[rv.len()-1].wf.iter())
-                        .map(|(&ph, &p)| ph * p)
-                        .reduce(|a, b| a+b)
-                        .unwrap() * dx,
-                    );
+                
 
-                println!("overlaps: {:?}", overlaps);
-                if overlaps.0 < overlaps.1 {
-                    rv.push(psi_lo);
-                } else {
-                    rv.push(psi_hi);
-                }
+                // add em both instead...
+                rv.push(psi_lo);
+                rv.push(psi_hi);
+                // let dx = (xbounds.1 - xbounds.0) / TwoFloat::from(psi_lo.wf.len() as u32);
+                // let overlaps = (
+                //     psi_lo.wf.iter().zip(rv[rv.len()-1].wf.iter())
+                //         .map(|(&pl, &p)| pl * p)
+                //         .reduce(|a, b| a+b)
+                //         .unwrap() * dx,
+                //     psi_hi.wf.iter().zip(rv[rv.len()-1].wf.iter())
+                //         .map(|(&ph, &p)| ph * p)
+                //         .reduce(|a, b| a+b)
+                //         .unwrap() * dx,
+                //     );
+
+                // println!("overlaps: {:?}", overlaps);
+                // if overlaps.0 < overlaps.1 {
+                //     rv.push(psi_lo);
+                // } else {
+                //     rv.push(psi_hi);
+                // }
             }
 
             // Prepare for next loop by saving the lower bound
@@ -177,7 +182,7 @@ fn simple_logdiff_bisect(mut energy_interval: (Float, Float),
 
     // Base case: interval is small = return middle of interval.
     let mid = (energy_interval.0 + energy_interval.1) / 2.;
-    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-13 {
+    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-30 {
         return Some(mid)
     }
 
@@ -210,7 +215,7 @@ fn find_interval_enclosing_upper_boundry(mut energy_interval: (Float, Float),
      */
 
     // Base case: interval is small = return lower end of interval.
-    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-13 {
+    if ((energy_interval.1 - energy_interval.0) / energy_interval.0).abs() < 1e-30 {
         if end_nodes.0 == n_nodes && end_nodes.1 == n_nodes+1 {
             return Some(energy_interval)
         } else {
