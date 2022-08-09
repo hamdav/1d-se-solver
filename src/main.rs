@@ -18,6 +18,8 @@ use speedy2d::window::{
 use speedy2d::{Graphics2D, Window};
 
 mod numerov;
+mod exactdiag;
+
 
 fn main()
 {
@@ -159,7 +161,8 @@ impl MyWindowHandler {
         self.potential.push(0.);
 
         // find the bound states
-        self.wfs = numerov::find_bound_states((-1., 1.), self.support, &self.potential);
+        //self.wfs = numerov::find_bound_states((-1., 1.), self.support, &self.potential);
+        self.wfs = exactdiag::find_bound_states((-1., 1.), self.support, &self.potential);
         // If this recalculation made our marked state not exist,
         // stop marking it
         if let Some(idx) = self.marked_wf {
