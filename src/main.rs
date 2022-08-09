@@ -163,6 +163,7 @@ impl MyWindowHandler {
         // find the bound states
         //self.wfs = numerov::find_bound_states((-1., 1.), self.support, &self.potential);
         self.wfs = exactdiag::find_bound_states((-1., 1.), self.support, &self.potential);
+
         // If this recalculation made our marked state not exist,
         // stop marking it
         if let Some(idx) = self.marked_wf {
@@ -308,14 +309,14 @@ impl WindowHandler for MyWindowHandler
         // Press K to decrease the energy scaling,
         // effectively decreasing the depth of the potential
         if virtual_key_code == Some(VirtualKeyCode::K) {
-            self.energy_scale /= 1.01;
+            self.energy_scale /= 1.03;
             self.update_potential_and_wf();
             helper.request_redraw();
         }
         // Press J to increase the energy scaling,
         // effectively increasing the depth of the potential
         if virtual_key_code == Some(VirtualKeyCode::J) {
-            self.energy_scale *= 1.01;
+            self.energy_scale *= 1.03;
             self.update_potential_and_wf();
             helper.request_redraw();
         }

@@ -448,10 +448,9 @@ mod tests {
     #[test]
     fn find_bound_states_test() {
         let potential = vec![-100.; 100];
-        let psi = find_bound_states_test((-1.0, 1.0), (-0.5,0.5), &potential);
+        let psi = find_bound_states((-1.0, 1.0), (-0.5,0.5), &potential);
         // It should look smooth...
         println!("{:?}", psi);
-        assert!(false);
     }
 
 
