@@ -4,7 +4,6 @@ use ndarray_linalg::{Eigh, UPLO};
 use std::f64::consts::PI;
 use super::numerov::State;
 
-
 pub fn find_bound_states(xbounds: (f64, f64),
                          support: (f64, f64), 
                          potential: &Vec<f64>) -> Vec<State> 

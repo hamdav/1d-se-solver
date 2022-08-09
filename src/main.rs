@@ -147,7 +147,7 @@ impl MyWindowHandler {
 
         // Calculate the potential by resampling and converting from
         // physical coordinates to energy coordinates
-        self.potential = resample_curve(convert_curve(phys_curve), 300)
+        self.potential = resample_curve(convert_curve(phys_curve), 500)
             .iter()
             .map(|v| self.energy_scale * v)
             .collect();
@@ -309,14 +309,14 @@ impl WindowHandler for MyWindowHandler
         // Press K to decrease the energy scaling,
         // effectively decreasing the depth of the potential
         if virtual_key_code == Some(VirtualKeyCode::K) {
-            self.energy_scale /= 1.03;
+            self.energy_scale /= 1.01;
             self.update_potential_and_wf();
             helper.request_redraw();
         }
         // Press J to increase the energy scaling,
         // effectively increasing the depth of the potential
         if virtual_key_code == Some(VirtualKeyCode::J) {
-            self.energy_scale *= 1.03;
+            self.energy_scale *= 1.01;
             self.update_potential_and_wf();
             helper.request_redraw();
         }
@@ -362,34 +362,6 @@ impl WindowHandler for MyWindowHandler
         if virtual_key_code == Some(VirtualKeyCode::G) {
             self.wf_scale *= 1.03;
             helper.request_redraw();
-        }
-
-        // TEMPORARY FOR BUGS
-        // Press D and F to change the energy which the wavefunction is calculated
-        // from.
-        if virtual_key_code == Some(VirtualKeyCode::F) {
-            if let Some(i) = self.marked_wf {
-                let new_energy = self.wfs[i].energy * 1.0001;
-                let (new_psi, _) = numerov::bidirectional_shooting(new_energy,
-                                                                   (-1., 1.),
-                                                                   self.support,
-                                                                   &self.potential);
-                self.wfs[i] = new_psi;
-                helper.request_redraw();
-            }
-
-        }
-        if virtual_key_code == Some(VirtualKeyCode::D) {
-            if let Some(i) = self.marked_wf {
-                let new_energy = self.wfs[i].energy / 1.0001;
-                let (new_psi, _) = numerov::bidirectional_shooting(new_energy,
-                                                                   (-1., 1.),
-                                                                   self.support,
-                                                                   &self.potential);
-                self.wfs[i] = new_psi;
-                helper.request_redraw();
-            }
-
         }
 
     }
